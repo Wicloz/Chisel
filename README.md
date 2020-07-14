@@ -1,2 +1,0 @@
-# CloudProxy
-har har har
