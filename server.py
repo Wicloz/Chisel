@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler, HTTPServer
 import cloudscraper
 
 requests = cloudscraper.create_scraper()
@@ -15,4 +15,4 @@ class CloudProxy(BaseHTTPRequestHandler):
 
 
 if __name__ == '__main__':
-    ThreadingHTTPServer(('', 1234), CloudProxy).serve_forever()
+    HTTPServer(('', 1234), CloudProxy).serve_forever()
