@@ -2,13 +2,19 @@
 
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import cloudscraper
+import validators
 
 requests = cloudscraper.create_scraper()
 
 
 class Chisel(BaseHTTPRequestHandler):
     def do_GET(self):
-        resp = requests.get(self.path[1:])
+        self.path = self.path[1:]
+        if not validators.url(self.path):
+            self.send_error(400)
+            return
+        resp = requests.get(self.path)
+
         self.send_response(resp.status_code)
         if 'Content-Type' in resp.headers:
             self.send_header('Content-Type', resp.headers['Content-Type'])
