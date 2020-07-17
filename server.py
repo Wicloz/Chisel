@@ -6,7 +6,7 @@ import cloudscraper
 requests = cloudscraper.create_scraper()
 
 
-class CloudProxy(BaseHTTPRequestHandler):
+class Chisel(BaseHTTPRequestHandler):
     def do_GET(self):
         resp = requests.get(self.path[1:])
         self.send_response(resp.status_code)
@@ -17,4 +17,4 @@ class CloudProxy(BaseHTTPRequestHandler):
 
 
 if __name__ == '__main__':
-    HTTPServer(('', 1234), CloudProxy).serve_forever()
+    HTTPServer(('', 1234), Chisel).serve_forever()
