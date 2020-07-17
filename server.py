@@ -16,9 +16,10 @@ class Chisel(BaseHTTPRequestHandler):
         resp = requests.get(self.path)
 
         self.send_response(resp.status_code)
-        if 'Content-Type' in resp.headers:
-            self.send_header('Content-Type', resp.headers['Content-Type'])
+        if 'content-type' in resp.headers:
+            self.send_header('content-type', resp.headers['content-type'])
         self.end_headers()
+
         self.wfile.write(resp.content)
 
 
