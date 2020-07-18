@@ -40,7 +40,7 @@ class Chisel(BaseHTTPRequestHandler):
         if self.command == 'HEAD':
             return
 
-        if split[1] == 'browser' and 'text/html' in resp.headers['content-type']:
+        if split[1] == 'browser' and 'content-type' in resp.headers and 'text/html' in resp.headers['content-type']:
             soup = BeautifulSoup(resp.content, 'lxml')
             for tag in soup(href=True):
                 tag['href'] = '/browser/' + urljoin(split[2], tag['href'])
