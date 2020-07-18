@@ -7,11 +7,17 @@ from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 from requests.exceptions import ConnectionError
 
-requests = cloudscraper.create_scraper()
+request = cloudscraper.create_scraper().request
 
 
 class Chisel(BaseHTTPRequestHandler):
-    def do_GET(self):
+    def __getattribute__(self, item):
+        if item.startswith('do_'):
+            return self.proxy
+        else:
+            return super().__getattribute__(item)
+
+    def proxy(self):
         prefix = ''
         if self.path.startswith('/browser/'):
             prefix = '/browser/'
@@ -22,7 +28,7 @@ class Chisel(BaseHTTPRequestHandler):
             return
 
         try:
-            resp = requests.get(split[2])
+            resp = request(self.command, split[2])
         except ConnectionError:
             self.send_error(502)
             return
@@ -31,6 +37,9 @@ class Chisel(BaseHTTPRequestHandler):
         if 'content-type' in resp.headers:
             self.send_header('content-type', resp.headers['content-type'])
         self.end_headers()
+
+        if self.command == 'HEAD':
+            return
 
         if 'text/html' in resp.headers['content-type']:
             soup = BeautifulSoup(resp.content, 'lxml')
