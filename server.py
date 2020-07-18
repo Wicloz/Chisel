@@ -18,14 +18,17 @@ class Chisel(BaseHTTPRequestHandler):
             return super().__getattribute__(item)
 
     def proxy(self):
-        prefix = ''
-        if self.path.startswith('/browser/'):
-            prefix = '/browser/'
-
         split = self.path.split('/', 2)
+        if len(split) != 3 or not valid.url(split[2]):
+            if 'referer' in self.headers and '/browser/' in self.headers['referer']:
+                split = ['', 'browser', urljoin(self.headers['referer'].split('/browser/', 1)[1], self.path)]
         if len(split) != 3 or not valid.url(split[2]):
             self.send_error(400)
             return
+
+        prefix = ''
+        if split[1] == 'browser':
+            prefix = '/browser/'
 
         try:
             resp = request(self.command, split[2])
