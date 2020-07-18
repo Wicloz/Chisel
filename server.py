@@ -26,10 +26,6 @@ class Chisel(BaseHTTPRequestHandler):
             self.send_error(400)
             return
 
-        prefix = ''
-        if split[1] == 'browser':
-            prefix = '/browser/'
-
         try:
             resp = request(self.command, split[2])
         except ConnectionError:
@@ -44,12 +40,12 @@ class Chisel(BaseHTTPRequestHandler):
         if self.command == 'HEAD':
             return
 
-        if 'text/html' in resp.headers['content-type']:
+        if split[1] == 'browser' and 'text/html' in resp.headers['content-type']:
             soup = BeautifulSoup(resp.content, 'lxml')
             for tag in soup(href=True):
-                tag['href'] = prefix + urljoin(split[2], tag['href'])
+                tag['href'] = '/browser/' + urljoin(split[2], tag['href'])
             for tag in soup(src=True):
-                tag['src'] = prefix + urljoin(split[2], tag['src'])
+                tag['src'] = '/browser/' + urljoin(split[2], tag['src'])
             self.wfile.write(soup.encode())
 
         else:
