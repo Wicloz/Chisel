@@ -3,9 +3,10 @@
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import cloudscraper
 import validators as valid
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 from bs4 import BeautifulSoup
 from requests.exceptions import ConnectionError
+from requests.structures import CaseInsensitiveDict
 
 request = cloudscraper.create_scraper().request
 
@@ -18,6 +19,7 @@ class Chisel(BaseHTTPRequestHandler):
             return super().__getattribute__(item)
 
     def proxy(self):
+        # process request url
         split = self.path.split('/', 2)
         if len(split) != 3 or not valid.url(split[2]):
             if 'referer' in self.headers and '/browser/' in self.headers['referer']:
@@ -25,9 +27,27 @@ class Chisel(BaseHTTPRequestHandler):
         if len(split) != 3 or not valid.url(split[2]):
             self.send_error(400)
             return
+        parsed = urlparse(split[2])
 
+        # process request body
+        content = None
+        if 'content-length' in self.headers:
+            content = self.rfile.read(int(self.headers['content-length']))
+
+        # process request headers
+        headers = CaseInsensitiveDict(self.headers)
+        headers['host'] = parsed.netloc
+        headers['origin'] = parsed.scheme + '://' + parsed.netloc
+        headers['referer'] = split[2]
+
+        # send upstream request
         try:
-            resp = request(self.command, split[2])
+            resp = request(
+                method=self.command,
+                url=split[2],
+                data=content,
+                headers=headers,
+            )
         except ConnectionError:
             self.send_error(502)
             return
