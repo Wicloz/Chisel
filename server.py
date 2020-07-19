@@ -52,24 +52,34 @@ class Chisel(BaseHTTPRequestHandler):
             self.send_error(502)
             return
 
+        # send initial response
         self.send_response(resp.status_code)
-        if 'content-type' in resp.headers:
-            self.send_header('content-type', resp.headers['content-type'])
-        self.end_headers()
+        for keep in ('content-type', 'set-cookie'):
+            if keep in resp.headers:
+                self.send_header(keep, resp.headers[keep])
 
+        # end for HEAD requests
         if self.command == 'HEAD':
+            self.end_headers()
             return
 
+        # process HTML for 'browser' requests
         if split[1] == 'browser' and 'content-type' in resp.headers and 'text/html' in resp.headers['content-type']:
             soup = BeautifulSoup(resp.content, 'lxml')
             for tag in soup(href=True):
                 tag['href'] = '/browser/' + urljoin(split[2], tag['href'])
             for tag in soup(src=True):
                 tag['src'] = '/browser/' + urljoin(split[2], tag['src'])
-            self.wfile.write(soup.encode())
 
+            # finalize response body
+            body = soup.encode()
         else:
-            self.wfile.write(resp.content)
+            body = resp.content
+
+        # send body responses
+        self.send_header('content-length', str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
 
 if __name__ == '__main__':
