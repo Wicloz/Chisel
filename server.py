@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import cloudscraper
 import validators as valid
 from urllib.parse import urljoin, urlparse
@@ -89,4 +89,4 @@ class Chisel(BaseHTTPRequestHandler):
 
 
 if __name__ == '__main__':
-    HTTPServer(('', 1234), Chisel).serve_forever()
+    ThreadingHTTPServer(('', 1234), Chisel).serve_forever()
