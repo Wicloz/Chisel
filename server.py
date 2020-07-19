@@ -72,6 +72,10 @@ class Chisel(BaseHTTPRequestHandler):
                 tag['href'] = '/browser/' + urljoin(split[2], tag['href'])
             for tag in soup(src=True):
                 tag['src'] = '/browser/' + urljoin(split[2], tag['src'])
+            with open('intercept.js', 'r') as fp:
+                tag = soup.new_tag('script')
+                tag.append(fp.read())
+                soup.insert(0, tag)
 
             # finalize response body
             body = soup.encode()
