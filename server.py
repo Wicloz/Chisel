@@ -39,6 +39,8 @@ class Chisel(BaseHTTPRequestHandler):
         headers['host'] = parsed.netloc
         headers['origin'] = parsed.scheme + '://' + parsed.netloc
         headers['referer'] = split[2]
+        headers.pop('user-agent', None)
+        headers.pop('cookie', None)
 
         # send upstream request
         try:
