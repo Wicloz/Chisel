@@ -38,7 +38,7 @@ class Chisel(BaseHTTPRequestHandler):
         headers = CaseInsensitiveDict(self.headers)
         headers['host'] = parsed.netloc
         headers['origin'] = parsed.scheme + '://' + parsed.netloc
-        headers['referer'] = split[2]
+        headers.pop('referer', None)
         headers.pop('user-agent', None)
         headers.pop('cookie', None)
 
