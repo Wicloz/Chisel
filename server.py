@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-import cloudscraper
+from cloudscraper import CloudScraper
 import validators as valid
 from urllib.parse import urljoin, urlparse
 from bs4 import BeautifulSoup
 from requests.exceptions import ConnectionError
 from requests.structures import CaseInsensitiveDict
 
-request = cloudscraper.create_scraper().request
+request = CloudScraper().request
 
 
 class Chisel(BaseHTTPRequestHandler):
