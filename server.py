@@ -7,6 +7,7 @@ from urllib.parse import urljoin, urlparse
 from bs4 import BeautifulSoup
 from requests.exceptions import ConnectionError
 from requests.structures import CaseInsensitiveDict
+from http.cookies import SimpleCookie
 
 request = CloudScraper().request
 
@@ -40,7 +41,9 @@ class Chisel(BaseHTTPRequestHandler):
         headers['origin'] = parsed.scheme + '://' + parsed.netloc
         headers.pop('referer', None)
         headers.pop('user-agent', None)
-        headers.pop('cookie', None)
+
+        # process request cookies
+        cookies = {key: value.value for key, value in SimpleCookie(headers.pop('cookie', None)).items()}
 
         # send upstream request
         try:
@@ -49,6 +52,7 @@ class Chisel(BaseHTTPRequestHandler):
                 url=split[2],
                 data=content,
                 headers=headers,
+                cookies=cookies,
             )
         except ConnectionError:
             self.send_error(502)
