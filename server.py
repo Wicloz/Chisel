@@ -9,8 +9,6 @@ from requests.exceptions import ConnectionError
 from requests.structures import CaseInsensitiveDict
 from http.cookies import SimpleCookie
 
-request = CloudScraper().request
-
 
 class Chisel(BaseHTTPRequestHandler):
     def __getattribute__(self, item):
@@ -47,7 +45,7 @@ class Chisel(BaseHTTPRequestHandler):
 
         # send upstream request
         try:
-            resp = request(
+            resp = session.request(
                 method=self.command,
                 url=split[2],
                 data=content,
@@ -93,4 +91,7 @@ class Chisel(BaseHTTPRequestHandler):
 
 
 if __name__ == '__main__':
+    # set up the shared Session
+    session = CloudScraper()
+    # start the HTTP server
     ThreadingHTTPServer(('', 1234), Chisel).serve_forever()
