@@ -14,8 +14,14 @@ class Chisel(BaseHTTPRequestHandler):
     def __getattribute__(self, item):
         if item.startswith('do_'):
             return self.proxy
+        elif item.startswith('log_'):
+            return self.disabled
         else:
             return super().__getattribute__(item)
+
+    @staticmethod
+    def disabled(*args, **kwargs):
+        pass
 
     def proxy(self):
         # process request url
