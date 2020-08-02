@@ -8,6 +8,20 @@ from bs4 import BeautifulSoup
 from requests.exceptions import ConnectionError
 from requests.structures import CaseInsensitiveDict
 from http.cookies import SimpleCookie
+from time import sleep
+
+
+def download(**kwargs):
+    for _ in range(3):
+        resp = session.request(**kwargs)
+
+        if resp.status_code in (200, 404):
+            return resp
+
+        print('Retrying "{}" with status code {} ...'.format(resp.url, resp.status_code))
+        sleep(1)
+
+    return resp
 
 
 class Chisel(BaseHTTPRequestHandler):
@@ -51,7 +65,7 @@ class Chisel(BaseHTTPRequestHandler):
 
         # send upstream request
         try:
-            resp = session.request(
+            resp = download(
                 method=self.command,
                 url=split[2],
                 data=content,
