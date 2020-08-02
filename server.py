@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from cloudscraper import CloudScraper
+from requests import Session
 import validators as valid
 from urllib.parse import urljoin, urlparse
 from bs4 import BeautifulSoup
@@ -112,6 +112,6 @@ class Chisel(BaseHTTPRequestHandler):
 
 if __name__ == '__main__':
     # set up the shared Session
-    session = CloudScraper()
+    session = Session()
     # start the HTTP server
     ThreadingHTTPServer(('', 1234), Chisel).serve_forever()
