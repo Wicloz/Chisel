@@ -130,7 +130,7 @@ if __name__ == '__main__':
     # set up the shared Session
     session = Session()
     options = Options()
-    options.headless = False
+    options.headless = True
     with Chrome(options=options) as browser:
         session.headers = {'user-agent': browser.execute_script('return navigator.userAgent')}
     del browser
