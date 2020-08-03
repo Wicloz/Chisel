@@ -9,6 +9,12 @@ from requests.exceptions import ConnectionError
 from requests.structures import CaseInsensitiveDict
 from http.cookies import SimpleCookie
 from time import sleep
+from cloudscraper import CloudScraper
+from selenium.webdriver import Chrome
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support.expected_conditions import title_is
+from selenium.common.exceptions import TimeoutException
 
 
 def download(**kwargs):
@@ -17,6 +23,16 @@ def download(**kwargs):
 
         if resp.status_code in (200, 404):
             return resp
+
+        if CloudScraper.is_IUAM_Challenge(resp) or CloudScraper.is_New_IUAM_Challenge(resp):
+            with Chrome(options=options) as browser:
+                browser.get(resp.url)
+                try:
+                    WebDriverWait(browser, 30).until_not(title_is('Just a moment...'))
+                except TimeoutException:
+                    pass
+                for cookie in browser.get_cookies():
+                    session.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
 
         print('Retrying "{}" with status code {} ...'.format(resp.url, resp.status_code))
         sleep(1)
@@ -113,5 +129,10 @@ class Chisel(BaseHTTPRequestHandler):
 if __name__ == '__main__':
     # set up the shared Session
     session = Session()
+    options = Options()
+    options.headless = False
+    with Chrome(options=options) as browser:
+        session.headers = {'user-agent': browser.execute_script('return navigator.userAgent')}
+    del browser
     # start the HTTP server
     ThreadingHTTPServer(('', 1234), Chisel).serve_forever()

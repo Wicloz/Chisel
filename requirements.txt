@@ -2,3 +2,5 @@ validators
 beautifulsoup4
 lxml
 requests
+cloudscraper
+selenium
