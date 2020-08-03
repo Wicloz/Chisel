@@ -15,6 +15,9 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support.expected_conditions import title_is
 from selenium.common.exceptions import TimeoutException
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.common.action_chains import ActionChains
+from random import choice
 
 
 def download(**kwargs):
@@ -26,7 +29,12 @@ def download(**kwargs):
 
         if CloudScraper.is_IUAM_Challenge(resp) or CloudScraper.is_New_IUAM_Challenge(resp):
             with Chrome(options=options) as browser:
+                with open('selenium.js', 'r') as fp:
+                    browser.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {'source': fp.read()})
                 browser.get(resp.url)
+                actions = ActionChains(browser)
+                for _ in range(30):
+                    actions.send_keys(choice((Keys.DOWN, Keys.UP, Keys.LEFT, Keys.RIGHT))).perform()
                 try:
                     WebDriverWait(browser, 30).until_not(title_is('Just a moment...'))
                 except TimeoutException:
@@ -131,6 +139,8 @@ if __name__ == '__main__':
     session = Session()
     options = Options()
     options.headless = True
+    options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:79.0) Gecko/20100101 Firefox/79.0')
+    options.add_argument('window-size=1920,1080')
     with Chrome(options=options) as browser:
         session.headers = {'user-agent': browser.execute_script('return navigator.userAgent')}
     del browser
