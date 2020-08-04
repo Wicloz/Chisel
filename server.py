@@ -86,6 +86,8 @@ class Chisel(BaseHTTPRequestHandler):
 
         # process request cookies
         cookies = {key: value.value for key, value in SimpleCookie(headers.pop('cookie', None)).items()}
+        cookies.pop('__cfduid', None)
+        cookies.pop('cf_clearance', None)
 
         # send upstream request
         try:
