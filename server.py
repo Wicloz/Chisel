@@ -126,9 +126,9 @@ class Chisel(BaseHTTPRequestHandler):
                 tag = soup.new_tag('script')
                 tag.append(fp.read())
                 soup.insert(0, tag)
-
-            # finalize response body
             body = soup.encode()
+
+        # proxy other requests
         else:
             body = resp.content
 
