@@ -1,54 +1,16 @@
 #!/usr/bin/env python3
 
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from requests import Session
 import validators as valid
 from urllib.parse import urljoin, urlparse
 from bs4 import BeautifulSoup
 from requests.exceptions import ConnectionError
 from requests.structures import CaseInsensitiveDict
 from http.cookies import SimpleCookie
-from time import sleep
-from cloudscraper import CloudScraper
-from selenium.webdriver import Chrome
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support.expected_conditions import title_is
-from selenium.common.exceptions import TimeoutException
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.common.action_chains import ActionChains
-from random import choice
+from session import ChiselSession
 
 
-def download(**kwargs):
-    for _ in range(3):
-        resp = session.request(**kwargs)
-
-        if resp.status_code in (200, 404):
-            return resp
-
-        if CloudScraper.is_IUAM_Challenge(resp) or CloudScraper.is_New_IUAM_Challenge(resp):
-            with Chrome(options=options) as browser:
-                with open('selenium.js', 'r') as fp:
-                    browser.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {'source': fp.read()})
-                browser.get(resp.url)
-                actions = ActionChains(browser)
-                for _ in range(30):
-                    actions.send_keys(choice((Keys.DOWN, Keys.UP, Keys.LEFT, Keys.RIGHT))).perform()
-                try:
-                    WebDriverWait(browser, 30).until_not(title_is('Just a moment...'))
-                except TimeoutException:
-                    pass
-                for cookie in browser.get_cookies():
-                    session.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
-
-        print('Retrying "{}" with status code {} ...'.format(resp.url, resp.status_code))
-        sleep(1)
-
-    return resp
-
-
-class Chisel(BaseHTTPRequestHandler):
+class ChiselProxy(BaseHTTPRequestHandler):
     def __getattribute__(self, item):
         if item.startswith('do_'):
             return self.proxy
@@ -93,7 +55,7 @@ class Chisel(BaseHTTPRequestHandler):
 
         # send upstream request
         try:
-            resp = download(
+            resp = session.request(
                 method=self.command,
                 url=split[2],
                 data=content,
@@ -139,20 +101,8 @@ class Chisel(BaseHTTPRequestHandler):
 
 
 if __name__ == '__main__':
-    # set up the shared Session
-    session = Session()
-    options = Options()
-    options.headless = True
-    options.add_argument('window-size=1920,1080')
-    with Chrome(options=options) as browser:
-        user_agent = browser.execute_script('return navigator.userAgent').replace('Headless', '')
-        session.headers = {'user-agent': user_agent}
-        options.add_argument('user-agent=' + user_agent)
-
-    # cleanup local variables
-    del browser
-    del user_agent
-
+    # set up the shared session
+    session = ChiselSession()
     # start the HTTP server
     print('Starting HTTP server on port 1234 ...')
-    ThreadingHTTPServer(('', 1234), Chisel).serve_forever()
+    ThreadingHTTPServer(('', 1234), ChiselProxy).serve_forever()
