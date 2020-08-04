@@ -141,10 +141,16 @@ if __name__ == '__main__':
     session = Session()
     options = Options()
     options.headless = True
-    options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:79.0) Gecko/20100101 Firefox/79.0')
     options.add_argument('window-size=1920,1080')
     with Chrome(options=options) as browser:
-        session.headers = {'user-agent': browser.execute_script('return navigator.userAgent')}
+        user_agent = browser.execute_script('return navigator.userAgent').replace('Headless', '')
+        session.headers = {'user-agent': user_agent}
+        options.add_argument('user-agent=' + user_agent)
+
+    # cleanup local variables
     del browser
+    del user_agent
+
     # start the HTTP server
+    print('Starting HTTP server on port 1234 ...')
     ThreadingHTTPServer(('', 1234), Chisel).serve_forever()
