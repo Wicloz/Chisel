@@ -83,6 +83,8 @@ class Chisel(BaseHTTPRequestHandler):
         headers['origin'] = parsed.scheme + '://' + parsed.netloc
         headers.pop('referer', None)
         headers.pop('user-agent', None)
+        headers.pop('accept-encoding', None)
+        headers.pop('te', None)
 
         # process request cookies
         cookies = {key: value.value for key, value in SimpleCookie(headers.pop('cookie', None)).items()}
@@ -104,7 +106,7 @@ class Chisel(BaseHTTPRequestHandler):
 
         # send initial response
         self.send_response(resp.status_code)
-        for keep in ('content-type', 'set-cookie'):
+        for keep in ('content-type', 'set-cookie', 'vary'):
             if keep in resp.headers:
                 self.send_header(keep, resp.headers[keep])
 
