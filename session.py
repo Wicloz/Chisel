@@ -9,11 +9,19 @@ from selenium.webdriver.common.action_chains import ActionChains
 from random import choice
 from time import sleep
 from cloudscraper import CloudScraper
+from http.cookiejar import CookiePolicy
+
+
+class BlockCookies(CookiePolicy):
+    return_ok = set_ok = domain_return_ok = path_return_ok = lambda self, *args, **kwargs: False
+    netscape = True
+    rfc2965 = hide_cookie2 = False
 
 
 class ChiselSession(Session):
     def __init__(self):
         super().__init__()
+        self.cookies.set_policy(BlockCookies())
         self.options = Options()
         self.options.headless = True
         self.options.add_argument('window-size=1920,1080')
