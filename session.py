@@ -10,6 +10,9 @@ from random import choice
 from time import sleep
 from cloudscraper import CloudScraper
 from http.cookiejar import CookiePolicy
+from pymongo import MongoClient
+from tldextract import extract
+from credentials import mongodb
 
 
 class BlockCookies(CookiePolicy):
@@ -29,12 +32,34 @@ class ChiselSession(Session):
             user_agent = browser.execute_script('return navigator.userAgent').replace('Headless', '')
             self.headers.update({'user-agent': user_agent})
             self.options.add_argument('user-agent=' + user_agent)
+        self.database = MongoClient(**mongodb)['chisel']
+        self.database['tokens'].create_index(keys='domain', unique=True)
+
+    @staticmethod
+    def domain(url):
+        extracted = extract(url)
+        return '.' + extracted.domain + '.' + extracted.suffix
+
+    def save_tokens(self, url, cookie1, cookie2):
+        if not cookie1 or not cookie2:
+            return
+        self.database['tokens'].update({'domain': self.domain(url)}, {
+            'domain': self.domain(url),
+            'token1': cookie1['value'],
+            'token2': cookie2['value'],
+        }, True)
+
+    def load_tokens(self, url):
+        document = self.database['tokens'].find_one({'domain': self.domain(url)})
+        if document is None:
+            return {}
+        return {'__cfduid': document['token1'], 'cf_clearance': document['token2']}
 
     def request(self, method, url, **kwargs):
         cookies = kwargs.pop('cookies', {})
 
         for _ in range(3):
-            resp = super().request(method=method, url=url, cookies=cookies, **kwargs)
+            resp = super().request(method=method, url=url, cookies={**cookies, **self.load_tokens(url)}, **kwargs)
 
             if resp.status_code in (200, 404):
                 return resp
@@ -51,8 +76,7 @@ class ChiselSession(Session):
                         WebDriverWait(browser, 30).until_not(title_is('Just a moment...'))
                     except TimeoutException:
                         pass
-                    for cookie in browser.get_cookies():
-                        self.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
+                    self.save_tokens(url, browser.get_cookie('__cfduid'), browser.get_cookie('cf_clearance'))
 
             print('Retrying "{}" with status code {} ...'.format(url, resp.status_code))
             sleep(1)

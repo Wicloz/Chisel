@@ -4,3 +4,5 @@ lxml
 requests
 cloudscraper
 selenium
+pymongo
+tldextract
