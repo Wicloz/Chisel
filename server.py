@@ -78,7 +78,9 @@ class ChiselProxy(BaseHTTPRequestHandler):
             return
 
         # process HTML for 'browser' requests
-        if split[1] == 'browser' and 'content-type' in resp.headers and 'text/html' in resp.headers['content-type']:
+        if split[1] == 'browser' and 'content-type' in resp.headers and (
+                'text/html' in resp.headers['content-type'] or 'application/xhtml+xml' in resp.headers['content-type']
+        ):
             soup = BeautifulSoup(resp.content, 'lxml')
             base = soup.find('base')
             base = base['href'] if base else split[2]
