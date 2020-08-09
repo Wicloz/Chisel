@@ -30,9 +30,11 @@ class ChiselSession(Session):
             self.headers.update({'user-agent': user_agent})
             self.options.add_argument('user-agent=' + user_agent)
 
-    def request(self, **kwargs):
+    def request(self, method, url, **kwargs):
+        cookies = kwargs.pop('cookies', {})
+
         for _ in range(3):
-            resp = super().request(**kwargs)
+            resp = super().request(method=method, url=url, cookies=cookies, **kwargs)
 
             if resp.status_code in (200, 404):
                 return resp
@@ -41,7 +43,7 @@ class ChiselSession(Session):
                 with Chrome(options=self.options) as browser:
                     with open('selenium.js', 'r') as fp:
                         browser.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {'source': fp.read()})
-                    browser.get(resp.url)
+                    browser.get(url)
                     actions = ActionChains(browser)
                     for _ in range(30):
                         actions.send_keys(choice((Keys.DOWN, Keys.UP, Keys.LEFT, Keys.RIGHT))).perform()
@@ -52,7 +54,7 @@ class ChiselSession(Session):
                     for cookie in browser.get_cookies():
                         self.cookies.set(name=cookie['name'], value=cookie['value'], domain=cookie['domain'])
 
-            print('Retrying "{}" with status code {} ...'.format(resp.url, resp.status_code))
+            print('Retrying "{}" with status code {} ...'.format(url, resp.status_code))
             sleep(1)
 
         return resp
