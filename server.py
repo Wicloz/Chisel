@@ -80,10 +80,12 @@ class ChiselProxy(BaseHTTPRequestHandler):
         # process HTML for 'browser' requests
         if split[1] == 'browser' and 'content-type' in resp.headers and 'text/html' in resp.headers['content-type']:
             soup = BeautifulSoup(resp.content, 'lxml')
+            base = soup.find('base')
+            base = base['href'] if base else split[2]
             for tag in soup(href=True):
-                tag['href'] = '/browser/' + urljoin(split[2], tag['href'])
+                tag['href'] = '/browser/' + urljoin(base, tag['href'])
             for tag in soup(src=True):
-                tag['src'] = '/browser/' + urljoin(split[2], tag['src'])
+                tag['src'] = '/browser/' + urljoin(base, tag['src'])
             with open('intercept.js', 'r') as fp:
                 tag = soup.new_tag('script')
                 tag.append(fp.read())
