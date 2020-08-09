@@ -8,6 +8,7 @@ from requests.exceptions import ConnectionError
 from requests.structures import CaseInsensitiveDict
 from http.cookies import SimpleCookie
 from session import ChiselSession
+import re
 
 
 class ChiselProxy(BaseHTTPRequestHandler):
@@ -77,31 +78,43 @@ class ChiselProxy(BaseHTTPRequestHandler):
             self.end_headers()
             return
 
-        # process HTML for 'browser' requests
-        if split[1] == 'browser' and 'content-type' in resp.headers and (
-                'text/html' in resp.headers['content-type'] or 'application/xhtml+xml' in resp.headers['content-type']
-        ):
-            soup = BeautifulSoup(resp.content, 'lxml')
-            base = soup.find('base')
-            base = base['href'] if base else split[2]
-            for tag in soup(href=True):
-                tag['href'] = '/browser/' + urljoin(base, tag['href'])
-            for tag in soup(src=True):
-                tag['src'] = '/browser/' + urljoin(base, tag['src'])
-            with open('intercept.js', 'r') as fp:
-                tag = soup.new_tag('script')
-                tag.append(fp.read())
-                soup.insert(0, tag)
-            body = soup.encode()
+        # process response body
+        if split[1] == 'browser' and 'content-type' in resp.headers:
+            pass
 
-        # proxy other requests
+            if 'text/html' in resp.headers['content-type'] or 'application/xhtml+xml' in resp.headers['content-type']:
+                soup = BeautifulSoup(resp.content, 'lxml')
+                base = soup.find('base')
+                base = base['href'] if base else split[2]
+                for tag in soup(href=True):
+                    tag['href'] = '/browser/' + urljoin(base, tag['href'])
+                for tag in soup(src=True):
+                    tag['src'] = '/browser/' + urljoin(base, tag['src'])
+                for tag in soup('script'):
+                    if tag.string:
+                        tag.string = self.expand_urls_in_text(tag.string, parsed.scheme)
+                with open('intercept.js', 'r') as fp:
+                    tag = soup.new_tag('script')
+                    tag.append(fp.read())
+                    soup.insert(0, tag)
+                body = soup.encode()
+
+            elif 'text/' in resp.headers['content-type'] and (resp.encoding or resp.apparent_encoding):
+                body = self.expand_urls_in_text(resp.text, parsed.scheme).encode(resp.encoding or resp.apparent_encoding)
+
+            else:
+                body = resp.content
         else:
             body = resp.content
 
-        # send body responses
+        # send response body
         self.send_header('content-length', str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+    @staticmethod
+    def expand_urls_in_text(text, scheme):
+        return re.sub(r'([\"\'])(.*?)(?:https?:)?//(.*?[^\\])?\1', '\\1\\2/browser/' + scheme + '://\\3\\1', text)
 
 
 if __name__ == '__main__':
