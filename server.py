@@ -13,6 +13,8 @@ import magic
 
 
 class ChiselProxy(BaseHTTPRequestHandler):
+    protocol_version = 'HTTP/1.1'
+
     def __getattribute__(self, item):
         if item.startswith('do_'):
             return self.proxy
@@ -49,6 +51,7 @@ class ChiselProxy(BaseHTTPRequestHandler):
         headers.pop('user-agent', None)
         headers.pop('accept-encoding', None)
         headers.pop('te', None)
+        headers.pop('connection', None)
 
         # process request cookies
         cookies = {key: value.value for key, value in SimpleCookie(headers.pop('cookie', None)).items()}
