@@ -13,6 +13,7 @@ from http.cookiejar import CookiePolicy
 from pymongo import MongoClient
 from tldextract import extract
 from credentials import mongodb
+from datetime import datetime
 
 
 class BlockCookies(CookiePolicy):
@@ -47,6 +48,7 @@ class ChiselSession(Session):
             'domain': self.domain(url),
             'token1': cookie1['value'],
             'token2': cookie2['value'],
+            'solved': datetime.utcnow(),
         }, True)
 
     def load_tokens(self, url):
