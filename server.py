@@ -70,7 +70,7 @@ class ChiselProxy(BaseHTTPRequestHandler):
 
         # send initial response
         self.send_response(resp.status_code)
-        for keep in ('content-type', 'set-cookie', 'vary'):
+        for keep in ('set-cookie', 'vary'):
             if keep in resp.headers:
                 self.send_header(keep, resp.headers[keep])
 
@@ -108,9 +108,11 @@ class ChiselProxy(BaseHTTPRequestHandler):
         else:
             body = resp.content
 
-        # send response body
-        if 'content-type' not in resp.headers:
-            self.send_header('content-type', magic.from_buffer(body, True))
+        # send response body and related headers
+        self.send_header(
+            'content-type',
+            resp.headers['content-type'] if 'content-type' in resp.headers else magic.from_buffer(body, True),
+        )
         self.send_header('content-length', str(len(body)))
         self.end_headers()
         self.wfile.write(body)
