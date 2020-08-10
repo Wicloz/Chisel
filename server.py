@@ -9,6 +9,7 @@ from requests.structures import CaseInsensitiveDict
 from http.cookies import SimpleCookie
 from session import ChiselSession
 import re
+import magic
 
 
 class ChiselProxy(BaseHTTPRequestHandler):
@@ -108,6 +109,8 @@ class ChiselProxy(BaseHTTPRequestHandler):
             body = resp.content
 
         # send response body
+        if 'content-type' not in resp.headers:
+            self.send_header('content-type', magic.from_buffer(body, True))
         self.send_header('content-length', str(len(body)))
         self.end_headers()
         self.wfile.write(body)
