@@ -47,7 +47,7 @@ class ChiselProxy(BaseHTTPRequestHandler):
         headers = CaseInsensitiveDict(self.headers)
         headers['host'] = parsed.netloc
         headers['origin'] = parsed.scheme + '://' + parsed.netloc
-        headers.pop('referer', None)
+        headers['referer'] = self.referer
         headers.pop('user-agent', None)
         headers.pop('accept-encoding', None)
         headers.pop('te', None)
@@ -119,6 +119,12 @@ class ChiselProxy(BaseHTTPRequestHandler):
         self.send_header('content-length', str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+    @property
+    def referer(self):
+        if 'referer' not in self.headers:
+            return None
+        return urlparse(self.headers['referer']).path.split('/', 2)[2]
 
     @staticmethod
     def expand_urls_in_text(text, scheme):
