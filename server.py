@@ -2,7 +2,7 @@
 
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import validators as valid
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin, urlsplit, urlunsplit
 from bs4 import BeautifulSoup
 from requests.exceptions import ConnectionError
 from requests.structures import CaseInsensitiveDict
@@ -10,11 +10,6 @@ from http.cookies import SimpleCookie
 from session import ChiselSession
 import re
 import magic
-
-
-class Referer:
-    mode = None
-    path = None
 
 
 class ChiselProxy(BaseHTTPRequestHandler):
@@ -33,19 +28,22 @@ class ChiselProxy(BaseHTTPRequestHandler):
         pass
 
     def proxy(self):
-        # process request url
-        split = self.path.split('/', 2)
-        if len(split) != 3 or not valid.url(split[2]):
-            redirect = urljoin(self.referer.path, self.path)
-            if valid.url(redirect):
+        # process request urls
+        c_mode, c_target = self.process_url(self.path)
+        p_mode, p_target = self.process_url(self.headers['referer'])
+        parsed = urlsplit(c_target)
+
+        # handle invalid requests
+        if c_mode is None or c_target is None:
+            if p_mode is None or p_target is None:
+                self.send_error(400)
+            else:
                 self.send_response(307)
-                self.send_header('location', self.referer.mode + redirect)
+                self.send_header('location', '/' + p_mode + '/' + urljoin(p_target, self.path))
+                self.send_header('vary', 'referer')
                 self.send_header('content-length', '0')
                 self.end_headers()
-            else:
-                self.send_error(400)
             return
-        parsed = urlparse(split[2])
 
         # process request body
         content = None
@@ -56,7 +54,7 @@ class ChiselProxy(BaseHTTPRequestHandler):
         headers = CaseInsensitiveDict(self.headers)
         headers['host'] = parsed.netloc
         headers['origin'] = parsed.scheme + '://' + parsed.netloc
-        headers['referer'] = self.referer.path
+        headers['referer'] = p_target
         headers.pop('user-agent', None)
         headers.pop('accept-encoding', None)
         headers.pop('te', None)
@@ -71,7 +69,7 @@ class ChiselProxy(BaseHTTPRequestHandler):
         try:
             resp = session.request(
                 method=self.command,
-                url=split[2],
+                url=c_target,
                 data=content,
                 headers=headers,
                 cookies=cookies,
@@ -92,13 +90,13 @@ class ChiselProxy(BaseHTTPRequestHandler):
             return
 
         # process response body
-        if split[1] == 'browser' and 'content-type' in resp.headers:
+        if c_mode == 'browser' and 'content-type' in resp.headers:
             pass
 
             if 'text/html' in resp.headers['content-type'] or 'application/xhtml+xml' in resp.headers['content-type']:
                 soup = BeautifulSoup(resp.content, 'lxml')
                 base = soup.find('base')
-                base = base['href'] if base else split[2]
+                base = base['href'] if base else c_target
                 for tag in soup(href=True):
                     tag['href'] = '/browser/' + urljoin(base, tag['href'])
                 for tag in soup(src=True):
@@ -129,17 +127,14 @@ class ChiselProxy(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    @property
-    def referer(self):
-        data = Referer()
-
-        if 'referer' in self.headers:
-            split = urlparse(self.headers['referer']).path.split('/', 2)
-            if len(split) == 3 and valid.url(split[2]):
-                data.mode = '/' + split[1] + '/'
-                data.path = split[2]
-
-        return data
+    @staticmethod
+    def process_url(url):
+        if not url:
+            return None, None
+        split = urlunsplit(('', '') + urlsplit(url)[2:]).split('/', 2)
+        if len(split) != 3 or not valid.url(split[2], True):
+            return None, None
+        return split[1], split[2]
 
     @staticmethod
     def expand_urls_in_text(text, scheme):
