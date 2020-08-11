@@ -12,6 +12,11 @@ import re
 import magic
 
 
+class Referer:
+    mode = None
+    path = None
+
+
 class ChiselProxy(BaseHTTPRequestHandler):
     protocol_version = 'HTTP/1.1'
 
@@ -31,10 +36,14 @@ class ChiselProxy(BaseHTTPRequestHandler):
         # process request url
         split = self.path.split('/', 2)
         if len(split) != 3 or not valid.url(split[2]):
-            if 'referer' in self.headers and '/browser/' in self.headers['referer']:
-                split = ['', 'browser', urljoin(self.headers['referer'].split('/browser/', 1)[1], self.path)]
-        if len(split) != 3 or not valid.url(split[2]):
-            self.send_error(400)
+            redirect = urljoin(self.referer.path, self.path)
+            if valid.url(redirect):
+                self.send_response(307)
+                self.send_header('location', self.referer.mode + redirect)
+                self.send_header('content-length', '0')
+                self.end_headers()
+            else:
+                self.send_error(400)
             return
         parsed = urlparse(split[2])
 
@@ -47,7 +56,7 @@ class ChiselProxy(BaseHTTPRequestHandler):
         headers = CaseInsensitiveDict(self.headers)
         headers['host'] = parsed.netloc
         headers['origin'] = parsed.scheme + '://' + parsed.netloc
-        headers['referer'] = self.referer
+        headers['referer'] = self.referer.path
         headers.pop('user-agent', None)
         headers.pop('accept-encoding', None)
         headers.pop('te', None)
@@ -122,9 +131,15 @@ class ChiselProxy(BaseHTTPRequestHandler):
 
     @property
     def referer(self):
-        if 'referer' not in self.headers:
-            return None
-        return urlparse(self.headers['referer']).path.split('/', 2)[2]
+        data = Referer()
+
+        if 'referer' in self.headers:
+            split = urlparse(self.headers['referer']).path.split('/', 2)
+            if len(split) == 3 and valid.url(split[2]):
+                data.mode = '/' + split[1] + '/'
+                data.path = split[2]
+
+        return data
 
     @staticmethod
     def expand_urls_in_text(text, scheme):
