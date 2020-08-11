@@ -27,6 +27,10 @@ class ChiselProxy(BaseHTTPRequestHandler):
     def disabled(*args, **kwargs):
         pass
 
+    def handle_one_request(self):
+        super().handle_one_request()
+        self.rfile = self.connection.makefile('rb', self.rbufsize)
+
     def proxy(self):
         # process request urls
         c_mode, c_target = self.process_url(self.path)
