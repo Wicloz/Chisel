@@ -63,7 +63,9 @@ class ChiselSession(Session):
         for _ in range(3):
             resp = super().request(method=method, url=url, cookies={**cookies, **self.load_tokens(url)}, **kwargs)
 
-            if resp.status_code in (200, 404):
+            if resp.status_code in (200, 404) or (
+                    not kwargs.get('allow_redirects', True) and str(resp.status_code).startswith('3')
+            ):
                 return resp
 
             if CloudScraper.is_IUAM_Challenge(resp) or CloudScraper.is_New_IUAM_Challenge(resp):

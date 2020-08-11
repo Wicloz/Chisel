@@ -77,6 +77,7 @@ class ChiselProxy(BaseHTTPRequestHandler):
                 data=content,
                 headers=headers,
                 cookies=cookies,
+                allow_redirects=c_mode != 'browser',
             )
         except ConnectionError:
             self.send_error(502)
@@ -87,6 +88,8 @@ class ChiselProxy(BaseHTTPRequestHandler):
         for keep in ('set-cookie', 'vary'):
             if keep in resp.headers:
                 self.send_header(keep, resp.headers[keep])
+        if 'location' in resp.headers:
+            self.send_header('location', '/' + c_mode + '/' + urljoin(c_target, resp.headers['location']))
 
         # end for HEAD requests
         if self.command == 'HEAD':
