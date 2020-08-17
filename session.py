@@ -13,6 +13,9 @@ from http.cookiejar import CookiePolicy
 from pymongo import MongoClient
 from tldextract import extract
 from credentials import mongodb
+from tempfile import TemporaryDirectory
+from filelock import FileLock
+from os.path import join
 
 
 class BlockCookies(CookiePolicy):
@@ -34,6 +37,7 @@ class ChiselSession(Session):
             self.options.add_argument('user-agent=' + user_agent)
         self.database = MongoClient(**mongodb)['chisel']
         self.database['tokens'].create_index(keys='domain', unique=True)
+        self.locks = TemporaryDirectory()
 
     @staticmethod
     def domain(url):
@@ -59,7 +63,8 @@ class ChiselSession(Session):
         cookies = kwargs.pop('cookies', {})
 
         for _ in range(3):
-            resp = super().request(method=method, url=url, cookies={**cookies, **self.load_tokens(url)}, **kwargs)
+            tokens = self.load_tokens(url)
+            resp = super().request(method=method, url=url, cookies={**cookies, **tokens}, **kwargs)
 
             if resp.status_code in (200, 404) or (
                     not kwargs.get('allow_redirects', True) and str(resp.status_code).startswith('3')
@@ -67,18 +72,20 @@ class ChiselSession(Session):
                 return resp
 
             if CloudScraper.is_IUAM_Challenge(resp) or CloudScraper.is_New_IUAM_Challenge(resp):
-                with Chrome(options=self.options) as browser:
-                    with open('selenium.js', 'r') as fp:
-                        browser.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {'source': fp.read()})
-                    browser.get(url)
-                    actions = ActionChains(browser)
-                    for _ in range(30):
-                        actions.send_keys(choice((Keys.DOWN, Keys.UP, Keys.LEFT, Keys.RIGHT))).perform()
-                    try:
-                        WebDriverWait(browser, 30).until_not(title_is('Just a moment...'))
-                    except TimeoutException:
-                        pass
-                    self.save_tokens(url, browser.get_cookie('__cfduid'), browser.get_cookie('cf_clearance'))
+                with FileLock(join(self.locks.name, self.domain(url))):
+                    if tokens == self.load_tokens(url):
+                        with Chrome(options=self.options) as browser:
+                            with open('selenium.js', 'r') as fp:
+                                browser.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {'source': fp.read()})
+                            browser.get(url)
+                            actions = ActionChains(browser)
+                            for _ in range(30):
+                                actions.send_keys(choice((Keys.DOWN, Keys.UP, Keys.LEFT, Keys.RIGHT))).perform()
+                            try:
+                                WebDriverWait(browser, 30).until_not(title_is('Just a moment...'))
+                            except TimeoutException:
+                                pass
+                            self.save_tokens(url, browser.get_cookie('__cfduid'), browser.get_cookie('cf_clearance'))
 
             print('Retrying "{}" with status code {} ...'.format(url, resp.status_code))
             sleep(1)
