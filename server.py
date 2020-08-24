@@ -56,13 +56,13 @@ class ChiselProxy(BaseHTTPRequestHandler):
 
         # process request headers
         headers = CaseInsensitiveDict(self.headers)
-        headers['host'] = parsed.netloc
-        headers['origin'] = parsed.scheme + '://' + parsed.netloc
-        headers['referer'] = p_target
         headers.pop('user-agent', None)
         headers.pop('accept-encoding', None)
         headers.pop('te', None)
         headers.pop('connection', None)
+        headers.pop('host', None)
+        headers['origin'] = parsed.scheme + '://' + parsed.netloc
+        headers['referer'] = p_target
 
         # process request cookies
         cookies = {key: value.value for key, value in SimpleCookie(headers.pop('cookie', None)).items()}
