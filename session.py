@@ -65,7 +65,7 @@ class ChiselSession(Session):
     def save_history(self, url, blocked):
         domain = urlsplit(url).netloc
 
-        if not self.database['history'].find_one({'domain': domain}):
+        if not self.database['history'].count({'domain': domain}):
             self.database['history'].insert({
                 'domain': domain,
                 'visits': 0,
