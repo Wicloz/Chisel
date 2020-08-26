@@ -28,7 +28,10 @@ class ChiselProxy(BaseHTTPRequestHandler):
         pass
 
     def handle_one_request(self):
-        super().handle_one_request()
+        try:
+            super().handle_one_request()
+        except ConnectionAbortedError:
+            pass
         self.rfile = self.connection.makefile('rb', self.rbufsize)
 
     def proxy(self):
