@@ -16,6 +16,8 @@ from credentials import mongodb
 from tempfile import TemporaryDirectory
 from filelock import FileLock
 from os.path import join
+from urllib.parse import urlsplit
+import re
 
 
 class BlockCookies(CookiePolicy):
@@ -37,6 +39,7 @@ class ChiselSession(Session):
             self.options.add_argument('user-agent=' + user_agent)
         self.database = MongoClient(**mongodb)['chisel']
         self.database['tokens'].create_index(keys='domain', unique=True)
+        self.database['history'].create_index(keys='domain', unique=True)
         self.locks = TemporaryDirectory()
 
     @staticmethod
@@ -59,12 +62,28 @@ class ChiselSession(Session):
             return {}
         return {'__cfduid': document['token1'], 'cf_clearance': document['token2']}
 
+    def save_history(self, url, blocked):
+        domain = urlsplit(url).netloc
+
+        if not self.database['history'].find_one({'domain': domain}):
+            self.database['history'].insert({
+                'domain': domain,
+                'visits': 0,
+                'bans': 0,
+            })
+
+        increments = {'visits': 1}
+        if blocked:
+            increments['bans'] = 1
+        self.database['history'].update({'domain': domain}, {'$inc': increments})
+
     def request(self, method, url, **kwargs):
         cookies = kwargs.pop('cookies', {})
 
-        for _ in range(3):
+        for _ in range(2):
             tokens = self.load_tokens(url)
             resp = super().request(method=method, url=url, cookies={**cookies, **tokens}, **kwargs)
+            self.save_history(url, resp.status_code == 429 or re.search(r'<title>\s*BANNED\s*</title>', resp.text))
 
             if resp.status_code in (200, 404) or (
                     not kwargs.get('allow_redirects', True) and str(resp.status_code).startswith('3')
