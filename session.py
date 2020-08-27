@@ -97,9 +97,7 @@ class ChiselSession(Session):
                 continue
             self.save_history(url, resp.status_code == 429 or re.search(r'<title>\s*BANNED\s*</title>', resp.text))
 
-            if resp.status_code in (200, 404) or (
-                    not kwargs.get('allow_redirects', True) and str(resp.status_code).startswith('3')
-            ):
+            if resp.ok or resp.status_code == 404:
                 return resp
 
             if CloudScraper.is_IUAM_Challenge(resp) or CloudScraper.is_New_IUAM_Challenge(resp):
