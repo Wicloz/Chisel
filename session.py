@@ -18,6 +18,7 @@ from filelock import FileLock
 from os.path import join
 from urllib.parse import urlsplit
 import re
+from random import random
 
 
 class BlockCookies(CookiePolicy):
@@ -77,9 +78,14 @@ class ChiselSession(Session):
             increments['bans'] = 1
         self.database['history'].update({'domain': domain}, {'$inc': increments})
 
+    def load_history(self, url):
+        document = self.database['history'].find_one({'domain': urlsplit(url).netloc})
+        return document and random() < document['bans'] / document['visits']
+
     def request(self, method, url, **kwargs):
         resp = None
         cookies = kwargs.pop('cookies', {})
+        blocked = self.load_history(url)
 
         for _ in range(2):
             tokens = self.load_tokens(url)
