@@ -81,7 +81,7 @@ class ChiselSession(Session):
 
     def load_history(self, url):
         document = self.database['history'].find_one({'domain': urlsplit(url).netloc})
-        return document and random() < document['bans'] / document['visits']
+        return document and random() < document['bans'] / (document['visits'] + 1)
 
     def request(self, method, url, **kwargs):
         resp = None
@@ -97,7 +97,12 @@ class ChiselSession(Session):
             except (ConnectionError, ReadTimeout):
                 print('Retrying "{}" after connection error ...'.format(url))
                 continue
-            self.save_history(url, resp.status_code == 429 or re.search(r'<title>\s*BANNED\s*</title>', resp.text))
+            if re.search(r'<title>\s*BANNED\s*</title>', resp.text):
+                resp.status_code = 403
+
+            if not blocked:
+                blocked = resp.status_code in (429, 403)
+                self.save_history(url, blocked)
 
             if resp.ok or resp.status_code == 404:
                 return resp
