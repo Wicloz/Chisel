@@ -19,6 +19,7 @@ from os.path import join
 from urllib.parse import urlsplit
 import re
 from random import random
+from requests.exceptions import ConnectionError, ReadTimeout
 
 
 class BlockCookies(CookiePolicy):
@@ -89,7 +90,11 @@ class ChiselSession(Session):
 
         for _ in range(2):
             tokens = self.load_tokens(url)
-            resp = super().request(method=method, url=url, cookies={**cookies, **tokens}, **kwargs)
+            try:
+                resp = super().request(method=method, url=url, cookies={**cookies, **tokens}, **kwargs)
+            except (ConnectionError, ReadTimeout):
+                print('Retrying "{}" after connection error ...'.format(url))
+                continue
             self.save_history(url, resp.status_code == 429 or re.search(r'<title>\s*BANNED\s*</title>', resp.text))
 
             if resp.status_code in (200, 404) or (
@@ -113,7 +118,7 @@ class ChiselSession(Session):
                                 pass
                             self.save_tokens(url, browser.get_cookie('__cfduid'), browser.get_cookie('cf_clearance'))
 
-            print('Retrying "{}" with status code {} ...'.format(url, resp.status_code))
+            print('Retrying "{}" after status code {} ...'.format(url, resp.status_code))
             sleep(1)
 
         return resp

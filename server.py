@@ -4,7 +4,6 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import validators as valid
 from urllib.parse import urljoin, urlsplit, urlunsplit
 from bs4 import BeautifulSoup
-from requests.exceptions import ConnectionError
 from requests.structures import CaseInsensitiveDict
 from http.cookies import SimpleCookie
 from session import ChiselSession
@@ -73,16 +72,15 @@ class ChiselProxy(BaseHTTPRequestHandler):
         cookies.pop('cf_clearance', None)
 
         # send upstream request
-        try:
-            resp = session.request(
-                method=self.command,
-                url=c_target,
-                data=content,
-                headers=headers,
-                cookies=cookies,
-                allow_redirects=c_mode != 'browser',
-            )
-        except ConnectionError:
+        resp = session.request(
+            method=self.command,
+            url=c_target,
+            data=content,
+            headers=headers,
+            cookies=cookies,
+            allow_redirects=c_mode != 'browser',
+        )
+        if resp is None:
             self.send_error(502)
             return
 
