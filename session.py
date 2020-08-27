@@ -88,7 +88,9 @@ class ChiselSession(Session):
         cookies = kwargs.pop('cookies', {})
         blocked = self.load_history(url)
 
-        for _ in range(2):
+        for _ in range(5):
+            pass
+
             tokens = self.load_tokens(url)
             try:
                 resp = super().request(method=method, url=url, cookies={**cookies, **tokens}, **kwargs)
