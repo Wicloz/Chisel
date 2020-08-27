@@ -10,7 +10,7 @@ from random import choice
 from time import sleep
 from cloudscraper import CloudScraper
 from http.cookiejar import CookiePolicy
-from pymongo import MongoClient
+from pymongo import MongoClient, DESCENDING
 from tldextract import extract
 from credentials import mongodb
 from tempfile import TemporaryDirectory
@@ -20,6 +20,9 @@ from urllib.parse import urlsplit
 import re
 from random import random
 from requests.exceptions import ConnectionError, ReadTimeout
+import pandas as pd
+import requests
+from datetime import datetime
 
 
 class BlockCookies(CookiePolicy):
@@ -42,6 +45,9 @@ class ChiselSession(Session):
         self.database = MongoClient(**mongodb)['chisel']
         self.database['tokens'].create_index(keys='domain', unique=True)
         self.database['history'].create_index(keys='domain', unique=True)
+        self.database['proxies'].create_index(keys='proxy', unique=True)
+        self.database['proxies'].create_index(keys='works')
+        self.database['proxies'].create_index(keys='inserted')
         self.locks = TemporaryDirectory()
 
     @staticmethod
@@ -88,13 +94,23 @@ class ChiselSession(Session):
         cookies = kwargs.pop('cookies', {})
         blocked = self.load_history(url)
 
-        for _ in range(5):
+        for _ in range(8):
             pass
 
             tokens = self.load_tokens(url)
+            proxy, proxies = self.get_random_proxy(blocked)
             try:
-                resp = super().request(method=method, url=url, cookies={**cookies, **tokens}, **kwargs)
+                resp = super().request(
+                    method=method,
+                    url=url,
+                    cookies={**cookies, **tokens},
+                    proxies=proxies,
+                    timeout=60,
+                    **kwargs,
+                )
             except (ConnectionError, ReadTimeout):
+                if proxy:
+                    self.database['proxies'].update({'proxy': proxy}, {'$set': {'works': False}})
                 print('Retrying "{}" after connection error ...'.format(url))
                 continue
             if re.search(r'<title>\s*BANNED\s*</title>', resp.text):
@@ -127,3 +143,46 @@ class ChiselSession(Session):
             sleep(1)
 
         return resp
+
+    def get_random_proxy(self, enabled):
+        if not enabled:
+            return None, None
+        proxy = self.database['proxies'].aggregate([
+            {'$match': {'works': True}},
+            {'$sample': {'size': 1}},
+        ]).next()['proxy']
+        return proxy, {'http': proxy, 'https': proxy}
+
+    def store_proxy_series(self, series):
+        for item in series:
+            if not self.database['proxies'].count({'proxy': item}):
+                self.database['proxies'].insert({
+                    'proxy': item,
+                    'works': True,
+                    'inserted': datetime.now(),
+                })
+
+    def worker(self):
+        while True:
+            pass
+
+            df = pd.read_html(requests.get('https://www.socks-proxy.net/').text)[0][:-1]
+            df['Port'] = df['Port'].astype(int).astype(str)
+            df['Version'] = df['Version'].str.lower()
+            self.store_proxy_series(df['Version'] + '://' + df['IP Address'] + ':' + df['Port'])
+
+            df = pd.read_html(requests.get('https://free-proxy-list.net/').text)[0][:-1]
+            df['Port'] = df['Port'].astype(int).astype(str)
+            df['Https'] = df['Https'].map({'yes': 'https', 'no': 'http'})
+            self.store_proxy_series(df['Https'] + '://' + df['IP Address'] + ':' + df['Port'])
+
+            for proxy in [doc['proxy'] for doc in self.database['proxies'].find().sort('inserted', DESCENDING)]:
+                try:
+                    works = all(requests.head(
+                        url=protocol + '://connectivitycheck.gstatic.com/generate_204',
+                        proxies={protocol: proxy},
+                        timeout=5,
+                    ).status_code == 204 for protocol in ('http', 'https'))
+                except (ConnectionError, ReadTimeout):
+                    works = False
+                self.database['proxies'].update({'proxy': proxy}, {'$set': {'works': works}})

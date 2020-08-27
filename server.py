@@ -9,6 +9,7 @@ from http.cookies import SimpleCookie
 from session import ChiselSession
 import re
 import magic
+from threading import Thread
 
 
 class ChiselProxy(BaseHTTPRequestHandler):
@@ -152,6 +153,7 @@ class ChiselProxy(BaseHTTPRequestHandler):
 if __name__ == '__main__':
     # set up the shared session
     session = ChiselSession()
+    Thread(target=session.worker, daemon=True).start()
     # start the HTTP server
     print('Starting HTTP server on port 1234 ...')
     ThreadingHTTPServer(('', 1234), ChiselProxy).serve_forever()

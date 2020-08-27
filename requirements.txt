@@ -2,9 +2,11 @@ validators
 beautifulsoup4
 lxml
 requests
+pysocks
 cloudscraper
 selenium
 pymongo
 tldextract
 python-magic
 filelock
+pandas
