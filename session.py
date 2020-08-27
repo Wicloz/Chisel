@@ -78,6 +78,7 @@ class ChiselSession(Session):
         self.database['history'].update({'domain': domain}, {'$inc': increments})
 
     def request(self, method, url, **kwargs):
+        resp = None
         cookies = kwargs.pop('cookies', {})
 
         for _ in range(2):
