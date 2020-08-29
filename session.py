@@ -98,14 +98,14 @@ class ChiselSession(Session):
         while retries < 5:
             pass
 
+            proxy = self.get_random_proxy(blocked)
             tokens = self.load_tokens(url)
-            proxy, proxies = self.get_random_proxy(blocked)
             try:
                 resp = super().request(
                     method=method,
                     url=url,
                     cookies={**cookies, **tokens},
-                    proxies=proxies,
+                    proxies={'http': proxy, 'https': proxy},
                     timeout=60,
                     **kwargs,
                 )
@@ -150,12 +150,11 @@ class ChiselSession(Session):
 
     def get_random_proxy(self, enabled):
         if not enabled:
-            return None, None
-        proxy = self.database['proxies'].aggregate([
+            return None
+        return self.database['proxies'].aggregate([
             {'$match': {'works': True}},
             {'$sample': {'size': 1}},
         ]).next()['proxy']
-        return proxy, {'http': proxy, 'https': proxy}
 
     def store_proxy_series(self, series):
         for item in series:
