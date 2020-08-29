@@ -91,10 +91,11 @@ class ChiselSession(Session):
 
     def request(self, method, url, **kwargs):
         resp = None
+        retries = 0
         cookies = kwargs.pop('cookies', {})
         blocked = self.load_history(url)
 
-        for _ in range(8):
+        while retries < 5:
             pass
 
             tokens = self.load_tokens(url)
@@ -111,6 +112,8 @@ class ChiselSession(Session):
             except (ConnectionError, ReadTimeout):
                 if proxy:
                     self.database['proxies'].update({'proxy': proxy}, {'$set': {'works': False}})
+                else:
+                    retries += 1
                 print('Retrying "{}" after connection error ...'.format(url))
                 continue
             if re.search(r'<title>\s*BANNED\s*</title>', resp.text):
@@ -140,6 +143,7 @@ class ChiselSession(Session):
                             self.save_tokens(url, browser.get_cookie('__cfduid'), browser.get_cookie('cf_clearance'))
 
             print('Retrying "{}" after status code {} ...'.format(url, resp.status_code))
+            retries += 1
             sleep(1)
 
         return resp
