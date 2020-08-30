@@ -52,11 +52,11 @@ class ChiselSession(Session):
         self.IPv4 = requests.get('https://api.ipify.org/').text
 
     @staticmethod
-    def domain(url):
+    def _domain(url):
         extracted = extract(url)
         return '.' + extracted.domain + '.' + extracted.suffix
 
-    def ip(self, proxy):
+    def _ip(self, proxy):
         if proxy:
             return urlsplit(proxy).hostname
         else:
@@ -66,8 +66,8 @@ class ChiselSession(Session):
         if not cookie1 or not cookie2:
             return
 
-        domain = self.domain(url)
-        ip = self.ip(proxy)
+        domain = self._domain(url)
+        ip = self._ip(proxy)
 
         self.database['tokens'].update({
             'domain': domain,
@@ -80,7 +80,7 @@ class ChiselSession(Session):
         }, True)
 
     def load_tokens(self, url):
-        document = self.database['tokens'].find_one({'domain': self.domain(url)})
+        document = self.database['tokens'].find_one({'domain': self._domain(url)})
         if document is None:
             return {}
         return {'__cfduid': document['token1'], 'cf_clearance': document['token2']}
@@ -142,7 +142,7 @@ class ChiselSession(Session):
                 return resp
 
             if CloudScraper.is_IUAM_Challenge(resp) or CloudScraper.is_New_IUAM_Challenge(resp):
-                with FileLock(join(self.locks.name, self.domain(url))):
+                with FileLock(join(self.locks.name, self._domain(url))):
                     if tokens == self.load_tokens(url):
                         with Chrome(options=self.options) as browser:
                             with open('selenium.js', 'r') as fp:
