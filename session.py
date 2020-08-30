@@ -23,6 +23,7 @@ from requests.exceptions import ConnectionError, ReadTimeout
 import pandas as pd
 import requests
 from datetime import datetime
+from copy import deepcopy
 
 
 class BlockCookies(CookiePolicy):
@@ -79,8 +80,8 @@ class ChiselSession(Session):
             'token2': cookie2['value'],
         }, True)
 
-    def load_tokens(self, url):
-        document = self.database['tokens'].find_one({'domain': self._domain(url)})
+    def load_tokens(self, url, proxy):
+        document = self.database['tokens'].find_one({'domain': self._domain(url), 'ip': self._ip(proxy)})
         if document is None:
             return {}
         return {'__cfduid': document['token1'], 'cf_clearance': document['token2']}
@@ -109,12 +110,16 @@ class ChiselSession(Session):
         retries = 0
         cookies = kwargs.pop('cookies', {})
         blocked = self.load_history(url)
+        proxy = None
+        tokens = {}
 
         while retries < 5:
             pass
 
-            proxy = self.get_random_proxy(blocked)
-            tokens = self.load_tokens(url)
+            if retries == 0 or tokens == self.load_tokens(url, proxy):
+                proxy = self.get_random_proxy(blocked)
+            tokens = self.load_tokens(url, proxy)
+
             try:
                 resp = super().request(
                     method=method,
@@ -142,9 +147,12 @@ class ChiselSession(Session):
                 return resp
 
             if CloudScraper.is_IUAM_Challenge(resp) or CloudScraper.is_New_IUAM_Challenge(resp):
-                with FileLock(join(self.locks.name, self._domain(url))):
-                    if tokens == self.load_tokens(url):
-                        with Chrome(options=self.options) as browser:
+                with FileLock(join(self.locks.name, self._domain(url) + ' -- ' + self._ip(proxy))):
+                    if tokens == self.load_tokens(url, proxy):
+                        options = deepcopy(self.options)
+                        if proxy:
+                            options.add_argument('--proxy-server=' + proxy)
+                        with Chrome(options=options) as browser:
                             with open('selenium.js', 'r') as fp:
                                 browser.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {'source': fp.read()})
                             browser.get(url)
