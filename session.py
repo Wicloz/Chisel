@@ -43,23 +43,38 @@ class ChiselSession(Session):
             self.headers.update({'user-agent': user_agent})
             self.options.add_argument('user-agent=' + user_agent)
         self.database = MongoClient(**mongodb)['chisel']
-        self.database['tokens'].create_index(keys='domain', unique=True)
+        self.database['tokens'].create_index(keys=(('domain', 1), ('ip', 1)), unique=True)
         self.database['history'].create_index(keys='domain', unique=True)
         self.database['proxies'].create_index(keys='proxy', unique=True)
         self.database['proxies'].create_index(keys='works')
         self.database['proxies'].create_index(keys='inserted')
         self.locks = TemporaryDirectory()
+        self.IPv4 = requests.get('https://api.ipify.org/').text
 
     @staticmethod
     def domain(url):
         extracted = extract(url)
         return '.' + extracted.domain + '.' + extracted.suffix
 
-    def save_tokens(self, url, cookie1, cookie2):
+    def ip(self, proxy):
+        if proxy:
+            return urlsplit(proxy).hostname
+        else:
+            return self.IPv4
+
+    def save_tokens(self, url, proxy, cookie1, cookie2):
         if not cookie1 or not cookie2:
             return
-        self.database['tokens'].update({'domain': self.domain(url)}, {
-            'domain': self.domain(url),
+
+        domain = self.domain(url)
+        ip = self.ip(proxy)
+
+        self.database['tokens'].update({
+            'domain': domain,
+            'ip': ip,
+        }, {
+            'domain': domain,
+            'ip': ip,
             'token1': cookie1['value'],
             'token2': cookie2['value'],
         }, True)
@@ -140,7 +155,7 @@ class ChiselSession(Session):
                                 WebDriverWait(browser, 30).until_not(title_is('Just a moment...'))
                             except TimeoutException:
                                 pass
-                            self.save_tokens(url, browser.get_cookie('__cfduid'), browser.get_cookie('cf_clearance'))
+                            self.save_tokens(url, proxy, browser.get_cookie('__cfduid'), browser.get_cookie('cf_clearance'))
 
             print('Retrying "{}" after status code {} ...'.format(url, resp.status_code))
             retries += 1
