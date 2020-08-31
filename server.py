@@ -141,7 +141,7 @@ class ChiselProxy(BaseHTTPRequestHandler):
         if not url:
             return None, None
         split = urlunsplit(('', '') + urlsplit(url)[2:]).split('/', 2)
-        if len(split) != 3 or not valid.url(split[2], True):
+        if len(split) != 3 or not valid.url(split[2], True) or urlsplit(split[2]).scheme not in ('http', 'https'):
             return None, None
         return split[1], split[2]
 

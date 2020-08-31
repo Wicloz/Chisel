@@ -106,6 +106,8 @@ class ChiselSession(Session):
         return document and random() < document['bans'] / (document['visits'] + 1)
 
     def request(self, method, url, **kwargs):
+        assert urlsplit(url).scheme in ('http', 'https')
+
         resp = None
         retries = 0
         cookies = kwargs.pop('cookies', {})
