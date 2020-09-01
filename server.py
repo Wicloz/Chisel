@@ -79,7 +79,6 @@ class ChiselProxy(BaseHTTPRequestHandler):
             data=content,
             headers=headers,
             cookies=cookies,
-            allow_redirects=c_mode != 'browser',
         )
         if resp is None:
             self.send_error(502)

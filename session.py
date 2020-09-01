@@ -41,7 +41,7 @@ class ChiselSession(Session):
         self.options.add_argument('window-size=1920,1080')
         with Chrome(options=self.options) as browser:
             user_agent = browser.execute_script('return navigator.userAgent').replace('Headless', '')
-            self.headers.update({'user-agent': user_agent})
+            self.headers['user-agent'] = user_agent
             self.options.add_argument('user-agent=' + user_agent)
         self.database = MongoClient(**mongodb)['chisel']
         self.database['tokens'].create_index(keys=(('domain', 1), ('ip', 1)), unique=True)
@@ -129,6 +129,7 @@ class ChiselSession(Session):
                     cookies={**cookies, **tokens},
                     proxies={'http': proxy, 'https': proxy},
                     timeout=60,
+                    allow_redirects=False,
                     **kwargs,
                 )
             except (ConnectionError, ReadTimeout):
@@ -168,8 +169,8 @@ class ChiselSession(Session):
                             self.save_tokens(url, proxy, browser.get_cookie('__cfduid'), browser.get_cookie('cf_clearance'))
 
             print('Retrying "{}" after status code {} ...'.format(url, resp.status_code))
+            sleep(2 ** retries)
             retries += 1
-            sleep(1)
 
         return resp
 
