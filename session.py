@@ -129,7 +129,6 @@ class ChiselSession(Session):
                     cookies={**cookies, **tokens},
                     proxies={'http': proxy, 'https': proxy},
                     timeout=60,
-                    allow_redirects=False,
                     **kwargs,
                 )
             except (ConnectionError, ReadTimeout):
