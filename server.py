@@ -99,31 +99,29 @@ class ChiselProxy(BaseHTTPRequestHandler):
             return
 
         # process response body
-        if c_mode == 'browser' and 'content-type' in resp.headers:
-            pass
+        if c_mode == 'browser' and 'content-type' in resp.headers and (
+                'text/html' in resp.headers['content-type'] or 'application/xhtml+xml' in resp.headers['content-type']
+        ):
+            soup = self.make_tasty_soup(resp, True)
+            for tag in soup('script'):
+                if tag.string:
+                    tag.string = self.expand_urls_in_text(tag.string, parsed.scheme)
+            with open('intercept.js', 'r') as fp:
+                tag = soup.new_tag('script')
+                tag.append(fp.read())
+                soup.insert(0, tag)
+            body = soup.encode()
 
-            if 'text/html' in resp.headers['content-type'] or 'application/xhtml+xml' in resp.headers['content-type']:
-                soup = BeautifulSoup(resp.content, 'lxml')
-                base = soup.find('base')
-                base = base['href'] if base else c_target
-                for tag in soup(href=True):
-                    tag['href'] = '/browser/' + urljoin(base, tag['href'])
-                for tag in soup(src=True):
-                    tag['src'] = '/browser/' + urljoin(base, tag['src'])
-                for tag in soup('script'):
-                    if tag.string:
-                        tag.string = self.expand_urls_in_text(tag.string, parsed.scheme)
-                with open('intercept.js', 'r') as fp:
-                    tag = soup.new_tag('script')
-                    tag.append(fp.read())
-                    soup.insert(0, tag)
-                body = soup.encode()
+        elif c_mode == 'browser' and 'content-type' in resp.headers and 'text/' in resp.headers['content-type'] and (
+                resp.encoding or resp.apparent_encoding
+        ):
+            body = self.expand_urls_in_text(resp.text, parsed.scheme).encode(resp.encoding or resp.apparent_encoding)
 
-            elif 'text/' in resp.headers['content-type'] and (resp.encoding or resp.apparent_encoding):
-                body = self.expand_urls_in_text(resp.text, parsed.scheme).encode(resp.encoding or resp.apparent_encoding)
+        elif c_mode != 'browser' and 'content-type' in resp.headers and (
+                'text/html' in resp.headers['content-type'] or 'application/xhtml+xml' in resp.headers['content-type']
+        ):
+            body = self.make_tasty_soup(resp, False).encode()
 
-            else:
-                body = resp.content
         else:
             body = resp.content
 
@@ -135,6 +133,17 @@ class ChiselProxy(BaseHTTPRequestHandler):
         self.send_header('content-length', str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+    @staticmethod
+    def make_tasty_soup(resp, browser):
+        soup = BeautifulSoup(resp.content, 'lxml')
+        base = soup.find('base')
+        base = base['href'] if base else resp.url
+        for tag in soup(href=True):
+            tag['href'] = ('/browser/' if browser else '') + urljoin(base, tag['href'])
+        for tag in soup(src=True):
+            tag['src'] = ('/browser/' if browser else '') + urljoin(base, tag['src'])
+        return soup
 
     @staticmethod
     def process_url(url):
