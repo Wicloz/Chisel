@@ -24,6 +24,7 @@ import pandas as pd
 import requests
 from datetime import datetime
 from copy import deepcopy
+import magic
 
 
 class BlockCookies(CookiePolicy):
@@ -138,8 +139,11 @@ class ChiselSession(Session):
                     retries += 1
                 print('Retrying "{}" after connection error ...'.format(url))
                 continue
+
             if re.search(r'<title>\s*BANNED\s*</title>', resp.text):
                 resp.status_code = 403
+            if 'content-type' not in resp.headers:
+                resp.headers['content-type'] = magic.from_buffer(resp.content, True)
 
             if not blocked:
                 blocked = resp.status_code in (429, 403)

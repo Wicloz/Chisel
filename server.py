@@ -8,7 +8,6 @@ from requests.structures import CaseInsensitiveDict
 from http.cookies import SimpleCookie
 from session import ChiselSession
 import re
-import magic
 from threading import Thread
 
 
@@ -99,7 +98,7 @@ class ChiselProxy(BaseHTTPRequestHandler):
             return
 
         # process response body
-        if c_mode == 'browser' and 'content-type' in resp.headers and (
+        if c_mode == 'browser' and (
                 'text/html' in resp.headers['content-type'] or 'application/xhtml+xml' in resp.headers['content-type']
         ):
             soup = self.make_tasty_soup(resp, True)
@@ -112,12 +111,12 @@ class ChiselProxy(BaseHTTPRequestHandler):
                 soup.insert(0, tag)
             body = soup.encode()
 
-        elif c_mode == 'browser' and 'content-type' in resp.headers and 'text/' in resp.headers['content-type'] and (
+        elif c_mode == 'browser' and 'text/' in resp.headers['content-type'] and (
                 resp.encoding or resp.apparent_encoding
         ):
             body = self.expand_urls_in_text(resp.text, parsed.scheme).encode(resp.encoding or resp.apparent_encoding)
 
-        elif c_mode != 'browser' and 'content-type' in resp.headers and (
+        elif c_mode != 'browser' and (
                 'text/html' in resp.headers['content-type'] or 'application/xhtml+xml' in resp.headers['content-type']
         ):
             body = self.make_tasty_soup(resp, False).encode()
@@ -126,10 +125,7 @@ class ChiselProxy(BaseHTTPRequestHandler):
             body = resp.content
 
         # send response body and related headers
-        self.send_header(
-            'content-type',
-            resp.headers['content-type'] if 'content-type' in resp.headers else magic.from_buffer(body, True),
-        )
+        self.send_header('content-type', resp.headers['content-type'])
         self.send_header('content-length', str(len(body)))
         self.end_headers()
         self.wfile.write(body)
