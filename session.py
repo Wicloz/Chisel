@@ -142,6 +142,9 @@ class ChiselSession(Session):
 
             if 'content-type' not in resp.headers:
                 resp.headers['content-type'] = magic.from_buffer(resp.content, True)
+            if 'content-length' not in resp.headers:
+                resp.headers['content-length'] = str(len(resp.content))
+
             if resp.headers['content-type'].startswith('text/html') and re.search(r'<title>\s*BANNED\s*</title>', resp.text):
                 resp.status_code = 403
 
