@@ -13,7 +13,6 @@ from threading import Thread
 
 class ChiselProxy(BaseHTTPRequestHandler):
     protocol_version = 'HTTP/1.1'
-    resp = None
 
     def __getattribute__(self, item):
         if item.startswith('do_'):
@@ -32,8 +31,6 @@ class ChiselProxy(BaseHTTPRequestHandler):
             super().handle_one_request()
         except ConnectionAbortedError:
             pass
-        if self.resp:
-            self.resp.close()
         self.rfile = self.connection.makefile('rb', self.rbufsize)
 
     def proxy(self):
@@ -75,7 +72,7 @@ class ChiselProxy(BaseHTTPRequestHandler):
         cookies.pop('cf_clearance', None)
 
         # send upstream request
-        self.resp = session.request(
+        resp = session.request(
             method=self.command,
             url=c_target,
             data=content,
@@ -84,28 +81,28 @@ class ChiselProxy(BaseHTTPRequestHandler):
             allow_redirects=False,
             stream=True,
         )
-        if self.resp is None:
+        if resp is None:
             self.send_error(502)
             return
 
         # send initial response
-        self.send_response(self.resp.status_code)
+        self.send_response(resp.status_code)
         for keep in ('set-cookie', 'vary'):
-            if keep in self.resp.headers:
-                self.send_header(keep, self.resp.headers[keep])
-        if 'location' in self.resp.headers:
-            self.send_header('location', '/' + c_mode + '/' + urljoin(c_target, self.resp.headers['location']))
+            if keep in resp.headers:
+                self.send_header(keep, resp.headers[keep])
+        if 'location' in resp.headers:
+            self.send_header('location', '/' + c_mode + '/' + urljoin(c_target, resp.headers['location']))
 
         # end for HEAD requests
         if self.command == 'HEAD':
             self.end_headers()
             return
-        body = self.resp.content
+        body = resp.content
 
         # process response body
-        if self.resp.headers['content-type'].startswith('text/html'):
+        if resp.headers['content-type'].startswith('text/html'):
             if c_mode == 'browser':
-                soup = self.make_tasty_soup(self.resp, True)
+                soup = self.make_tasty_soup(resp, True)
                 for tag in soup('script'):
                     if tag.string:
                         tag.string = self.expand_urls_in_text(tag.string, parsed.scheme)
@@ -115,18 +112,18 @@ class ChiselProxy(BaseHTTPRequestHandler):
                     soup.insert(0, tag)
                 body = soup.encode()
             else:
-                body = self.make_tasty_soup(self.resp, False).encode()
-            self.resp.headers['content-length'] = str(len(body))
+                body = self.make_tasty_soup(resp, False).encode()
+            resp.headers['content-length'] = str(len(body))
 
-        elif c_mode == 'browser' and self.resp.headers['content-type'].startswith('text/') and (
-                self.resp.encoding or self.resp.apparent_encoding
+        elif c_mode == 'browser' and resp.headers['content-type'].startswith('text/') and (
+                resp.encoding or resp.apparent_encoding
         ):
-            body = self.expand_urls_in_text(self.resp.text, parsed.scheme).encode(self.resp.encoding or self.resp.apparent_encoding)
-            self.resp.headers['content-length'] = str(len(body))
+            body = self.expand_urls_in_text(resp.text, parsed.scheme).encode(resp.encoding or resp.apparent_encoding)
+            resp.headers['content-length'] = str(len(body))
 
         # send response body and related headers
-        self.send_header('content-type', self.resp.headers['content-type'])
-        self.send_header('content-length', self.resp.headers['content-length'])
+        self.send_header('content-type', resp.headers['content-type'])
+        self.send_header('content-length', resp.headers['content-length'])
         self.end_headers()
         self.wfile.write(body)
 
