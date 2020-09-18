@@ -97,37 +97,33 @@ class ChiselProxy(BaseHTTPRequestHandler):
         if self.command == 'HEAD':
             self.end_headers()
             return
+        body = resp.content
 
         # process response body
-        if c_mode == 'browser' and (
-                'text/html' in resp.headers['content-type'] or 'application/xhtml+xml' in resp.headers['content-type']
-        ):
-            soup = self.make_tasty_soup(resp, True)
-            for tag in soup('script'):
-                if tag.string:
-                    tag.string = self.expand_urls_in_text(tag.string, parsed.scheme)
-            with open('intercept.js', 'r') as fp:
-                tag = soup.new_tag('script')
-                tag.append(fp.read())
-                soup.insert(0, tag)
-            body = soup.encode()
+        if resp.headers['content-type'].startswith('text/html'):
+            if c_mode == 'browser':
+                soup = self.make_tasty_soup(resp, True)
+                for tag in soup('script'):
+                    if tag.string:
+                        tag.string = self.expand_urls_in_text(tag.string, parsed.scheme)
+                with open('intercept.js', 'r') as fp:
+                    tag = soup.new_tag('script')
+                    tag.append(fp.read())
+                    soup.insert(0, tag)
+                body = soup.encode()
+            else:
+                body = self.make_tasty_soup(resp, False).encode()
+            resp.headers['content-length'] = str(len(body))
 
-        elif c_mode == 'browser' and 'text/' in resp.headers['content-type'] and (
+        elif c_mode == 'browser' and resp.headers['content-type'].startswith('text/') and (
                 resp.encoding or resp.apparent_encoding
         ):
             body = self.expand_urls_in_text(resp.text, parsed.scheme).encode(resp.encoding or resp.apparent_encoding)
-
-        elif c_mode != 'browser' and (
-                'text/html' in resp.headers['content-type'] or 'application/xhtml+xml' in resp.headers['content-type']
-        ):
-            body = self.make_tasty_soup(resp, False).encode()
-
-        else:
-            body = resp.content
+            resp.headers['content-length'] = str(len(body))
 
         # send response body and related headers
         self.send_header('content-type', resp.headers['content-type'])
-        self.send_header('content-length', str(len(body)))
+        self.send_header('content-length', resp.headers['content-length'])
         self.end_headers()
         self.wfile.write(body)
 
