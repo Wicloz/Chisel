@@ -117,7 +117,8 @@ class ChiselSession(Session):
         tokens = {}
 
         while retries < 5:
-            pass
+            if retries != 0:
+                sleep(2 ** (retries - 1))
 
             if retries == 0 or tokens == self.load_tokens(url, proxy):
                 proxy = self.get_random_proxy(blocked)
@@ -175,7 +176,6 @@ class ChiselSession(Session):
                             self.save_tokens(url, proxy, browser.get_cookie('__cfduid'), browser.get_cookie('cf_clearance'))
 
             print('Retrying "{}" after status code {} ...'.format(url, resp.status_code))
-            sleep(2 ** retries)
             retries += 1
 
         return resp
