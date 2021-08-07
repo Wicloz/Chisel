@@ -1,6 +1,5 @@
 from requests import Session
-from selenium.webdriver import Chrome
-from selenium.webdriver.chrome.options import Options
+from selenium.webdriver import Chrome, ChromeOptions
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support.expected_conditions import title_is
 from selenium.common.exceptions import TimeoutException
@@ -37,13 +36,16 @@ class ChiselSession(Session):
     def __init__(self):
         super().__init__()
         self.cookies.set_policy(BlockCookies())
-        self.options = Options()
+        self.options = ChromeOptions()
         self.options.headless = True
-        self.options.add_argument('window-size=1920,1080')
+        self.options.add_argument('--window-size=1920,1080')
+        self.options.add_experimental_option('excludeSwitches', ['enable-automation', 'dom-automation'])
+        self.options.add_experimental_option('useAutomationExtension', False)
+        self.options.add_argument('--disable-blink-features=AutomationControlled')
         with Chrome(options=self.options) as browser:
             user_agent = browser.execute_script('return navigator.userAgent').replace('Headless', '')
             self.headers['user-agent'] = user_agent
-            self.options.add_argument('user-agent=' + user_agent)
+            self.options.add_argument('--user-agent=' + user_agent)
         self.database = MongoClient(**mongodb)['chisel']
         self.database['tokens'].create_index(keys=(('domain', 1), ('ip', 1)), unique=True)
         self.database['history'].create_index(keys='domain', unique=True)
