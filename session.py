@@ -35,7 +35,7 @@ class BlockCookies(CookiePolicy):
 class ChiselSession(Session):
     def __init__(self):
         super().__init__()
-        self.cookies.set_policy(BlockCookies())
+
         self.options = ChromeOptions()
         self.options.headless = True
         self.options.add_argument('--window-size=1920,1080')
@@ -46,15 +46,18 @@ class ChiselSession(Session):
             user_agent = browser.execute_script('return navigator.userAgent').replace('Headless', '')
             self.headers['user-agent'] = user_agent
             self.options.add_argument('--user-agent=' + user_agent)
+
         self.database = MongoClient(**mongodb)['chisel']
         self.database['tokens'].create_index(keys=(('domain', 1), ('ip', 1)), unique=True)
         self.database['history'].create_index(keys='domain', unique=True)
         self.database['proxies'].create_index(keys='proxy', unique=True)
         self.database['proxies'].create_index(keys='works')
         self.database['proxies'].create_index(keys='inserted')
+
         self.locks = TemporaryDirectory()
         self.IPv4 = requests.get('https://api.ipify.org/').text
         self.extract = TLDExtract(cache_dir=self.locks.name)
+        self.cookies.set_policy(BlockCookies())
 
     def _domain(self, url):
         extracted = self.extract(url)
