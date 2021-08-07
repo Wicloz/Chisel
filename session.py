@@ -107,7 +107,7 @@ class ChiselSession(Session):
         return document and random() < document['bans'] / (document['visits'] + 1)
 
     def request(self, method, url, **kwargs):
-        assert urlsplit(url).scheme in ('http', 'https')
+        assert urlsplit(url).scheme in {'http', 'https'}
 
         resp = None
         retries = 0
@@ -151,7 +151,7 @@ class ChiselSession(Session):
                 resp.status_code = 403
 
             if not blocked:
-                blocked = resp.status_code in (429, 403)
+                blocked = resp.status_code in {429, 403}
                 self.save_history(url, blocked)
 
             if resp.ok or resp.status_code == 404:
