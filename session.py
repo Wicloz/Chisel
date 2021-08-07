@@ -169,6 +169,7 @@ class ChiselSession(Session):
                             with open('selenium.js', 'r') as fp:
                                 browser.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {'source': fp.read()})
                             browser.get(url)
+                            browser.execute_script(f"window.open('{url}');")
                             actions = ActionChains(browser)
                             for _ in range(30):
                                 actions.send_keys(choice((Keys.DOWN, Keys.UP, Keys.LEFT, Keys.RIGHT))).perform()
