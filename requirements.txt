@@ -10,3 +10,4 @@ tldextract
 python-magic
 filelock
 pandas
+python-magic-bin

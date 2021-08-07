@@ -146,7 +146,8 @@ class ChiselSession(Session):
             if 'content-length' not in resp.headers:
                 resp.headers['content-length'] = str(len(resp.content))
 
-            if resp.headers['content-type'].startswith('text/html') and re.search(r'<title>\s*BANNED\s*</title>', resp.text):
+            if resp.headers['content-type'].startswith('text/html') \
+                    and re.search(r'<title>\s*BANNED\s*</title>', resp.text):
                 resp.status_code = 403
 
             if not blocked:
@@ -173,7 +174,11 @@ class ChiselSession(Session):
                                 WebDriverWait(browser, 30).until_not(title_is('Just a moment...'))
                             except TimeoutException:
                                 pass
-                            self.save_tokens(url, proxy, browser.get_cookie('__cfduid'), browser.get_cookie('cf_clearance'))
+                            self.save_tokens(
+                                url, proxy,
+                                browser.get_cookie('__cfduid'),
+                                browser.get_cookie('cf_clearance'),
+                            )
 
             print('Retrying "{}" after status code {} ...'.format(url, resp.status_code))
             retries += 1
