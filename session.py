@@ -66,8 +66,8 @@ class ChiselSession(Session):
         else:
             return self.IPv4
 
-    def save_tokens(self, url, proxy, cookie1, cookie2):
-        if not cookie1 or not cookie2:
+    def save_tokens(self, url, proxy, cookie):
+        if not cookie:
             return
 
         domain = self._domain(url)
@@ -79,15 +79,14 @@ class ChiselSession(Session):
         }, {
             'domain': domain,
             'ip': ip,
-            'token1': cookie1['value'],
-            'token2': cookie2['value'],
+            'token': cookie['value'],
         }, True)
 
     def load_tokens(self, url, proxy):
         document = self.database['tokens'].find_one({'domain': self._domain(url), 'ip': self._ip(proxy)})
         if document is None:
             return {}
-        return {'__cfduid': document['token1'], 'cf_clearance': document['token2']}
+        return {'cf_clearance': document['token']}
 
     def save_history(self, url, blocked):
         domain = urlsplit(url).netloc
@@ -177,11 +176,7 @@ class ChiselSession(Session):
                                 WebDriverWait(browser, 30).until_not(title_is('Just a moment...'))
                             except TimeoutException:
                                 pass
-                            self.save_tokens(
-                                url, proxy,
-                                browser.get_cookie('__cfduid'),
-                                browser.get_cookie('cf_clearance'),
-                            )
+                            self.save_tokens(url, proxy, browser.get_cookie('cf_clearance'))
 
             print('Retrying "{}" after status code {} ...'.format(url, resp.status_code))
             retries += 1
