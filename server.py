@@ -9,6 +9,7 @@ from http.cookies import SimpleCookie
 from session import ChiselSession
 import re
 from threading import Thread
+import json
 
 
 class ChiselProxy(BaseHTTPRequestHandler):
@@ -34,6 +35,21 @@ class ChiselProxy(BaseHTTPRequestHandler):
         self.rfile = self.connection.makefile('rb', self.rbufsize)
 
     def proxy(self):
+        pass
+
+        # special case: process info request
+        if self.path == '/info':
+            response = json.dumps({
+                'UA': self.headers['user-agent'],
+                'IP': self.client_address[0],
+            }).encode('UTF8')
+            self.send_response(200)
+            self.send_header('content-type', 'application/json')
+            self.send_header('content-length', str(len(response)))
+            self.end_headers()
+            self.wfile.write(response)
+            return
+
         # process request urls
         c_mode, c_target = self.process_url(self.path)
         p_mode, p_target = self.process_url(self.headers['referer'])
