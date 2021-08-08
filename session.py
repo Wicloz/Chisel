@@ -32,6 +32,7 @@ class ChiselSession(Session):
 
         self.database = MongoClient(**mongodb)['chisel']
         self.database['tokens'].create_index(keys=(('domain', 1), ('ip', 1)), unique=True)
+        self.database['tokens'].update_many({}, {'$set': {'locked': False}})
         self.database['history'].create_index(keys='domain', unique=True)
         self.database['proxies'].create_index(keys='proxy', unique=True)
         self.database['proxies'].create_index(keys='works')
