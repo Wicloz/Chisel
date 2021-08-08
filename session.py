@@ -17,6 +17,8 @@ import requests
 from datetime import datetime
 from chrome_cookiejar import ChromeCookieJar
 import magic
+from bs4 import BeautifulSoup
+import json
 
 
 class TokenLock:
@@ -78,12 +80,6 @@ class ChiselSession(Session):
         self.database['proxies'].create_index(keys='works')
         self.database['proxies'].create_index(keys='inserted')
 
-        # TODO: consolidate and clean up
-        self.IPv4 = requests.get('https://api.ipify.org/').text
-        self.ua = re.search(r'"rawUa":"(.+?)"', run(capture_output=True, universal_newlines=True, args=(
-            'chromium', '--headless', '--disable-gpu', '--dump-dom', 'https://www.whatsmyua.info/api/v1/ua',
-        )).stdout).group(1).replace('HeadlessChrome', 'Chrome')
-
         self.cookies.set_policy(BlockCookies())
 
     @staticmethod
@@ -91,15 +87,21 @@ class ChiselSession(Session):
         extracted = extract(url)
         return '.' + extracted.domain + '.' + extracted.suffix
 
-    def current_ip(self, proxy):
+    @staticmethod
+    def current_ip(proxy):
         if proxy:
             return urlsplit(proxy).hostname
         else:
-            return self.IPv4
+            return requests.get('https://api64.ipify.org/').text
 
-    def save_tokens(self, url, proxy, token, ua):
+    def save_tokens(self, url, proxy, token):
         domain = self.cookie_domain(url)
         ip = self.current_ip(proxy)
+
+        soup = BeautifulSoup(run(capture_output=True, universal_newlines=True, args=(
+            'chromium', '--disable-gpu', '--headless', '--dump-dom', 'https://chisel.wicloz.rocks/info',
+        )).stdout, 'lxml')
+        ua = json.loads(soup.find('pre').text)['UA'].replace('HeadlessChrome', 'Chrome')
 
         self.database['tokens'].update_one({
             'domain': domain,
@@ -209,7 +211,7 @@ class ChiselSession(Session):
 
                             for cookie in ChromeCookieJar(join(tmp, 'Default', 'Cookies')):
                                 if cookie.domain == self.cookie_domain(url) and cookie.name == 'cf_clearance':
-                                    self.save_tokens(url, proxy, cookie.value, self.ua)
+                                    self.save_tokens(url, proxy, cookie.value)
                                     break
 
             print('Retrying "{}" after status code {} ...'.format(url, resp.status_code))
