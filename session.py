@@ -20,6 +20,47 @@ from chrome_cookiejar import ChromeCookieJar
 import magic
 
 
+class TokenLock:
+    def __init__(self, session, url, proxy):
+        self.domain = session.cookie_domain(url)
+        self.ip = session.current_ip(proxy)
+        self.table = session.database['tokens']
+
+    def _locked(self):
+        record = self.table.find_one({
+            'domain': self.domain,
+            'ip': self.ip,
+        })
+        return record and 'locked' in record and record['locked']
+
+    def __enter__(self):
+        changed = False
+        while self._locked():
+            changed = True
+            sleep(1)
+
+        self.table.update_one({
+            'domain': self.domain,
+            'ip': self.ip,
+        }, {'$set': {
+            'domain': self.domain,
+            'ip': self.ip,
+            'locked': True,
+        }}, upsert=True)
+
+        return changed
+
+    def __exit__(self, *args):
+        self.table.update_one({
+            'domain': self.domain,
+            'ip': self.ip,
+        }, {'$set': {
+            'domain': self.domain,
+            'ip': self.ip,
+            'locked': False,
+        }}, upsert=True)
+
+
 class BlockCookies(CookiePolicy):
     return_ok = set_ok = domain_return_ok = path_return_ok = lambda self, *args, **kwargs: False
     netscape = True
@@ -150,20 +191,21 @@ class ChiselSession(Session):
                 return resp
 
             # TODO: custom check and remove module
-            # TODO: prevent multiple browsers for same challenge
             if CloudScraper.is_IUAM_Challenge(resp) or CloudScraper.is_New_IUAM_Challenge(resp):
-                with TemporaryDirectory() as tmp:
-                    # TODO: use flags to set proxy
-                    browser = Popen(stdout=DEVNULL, stderr=DEVNULL, args=(
-                        'chromium', '--disable-gpu', '--user-data-dir=' + tmp, url,
-                    ))
-                    sleep(10)
-                    browser.send_signal(SIGINT)
-                    browser.wait()
-                    for cookie in ChromeCookieJar(join(tmp, 'Default', 'Cookies')):
-                        if cookie.domain == self.cookie_domain(url) and cookie.name == 'cf_clearance':
-                            self.save_tokens(url, proxy, cookie.value, self.ua)
-                            break
+                with TokenLock(self, url, proxy) as changed:
+                    if not changed:
+                        with TemporaryDirectory() as tmp:
+                            # TODO: use flags to set proxy
+                            browser = Popen(stdout=DEVNULL, stderr=DEVNULL, args=(
+                                'chromium', '--disable-gpu', '--user-data-dir=' + tmp, url,
+                            ))
+                            sleep(10)
+                            browser.send_signal(SIGINT)
+                            browser.wait()
+                            for cookie in ChromeCookieJar(join(tmp, 'Default', 'Cookies')):
+                                if cookie.domain == self.cookie_domain(url) and cookie.name == 'cf_clearance':
+                                    self.save_tokens(url, proxy, cookie.value, self.ua)
+                                    break
 
             print('Retrying "{}" after status code {} ...'.format(url, resp.status_code))
             retries += 1
