@@ -10,7 +10,7 @@ from time import sleep
 from cloudscraper import CloudScraper
 from http.cookiejar import CookiePolicy
 from pymongo import MongoClient, DESCENDING
-from tldextract import TLDExtract
+from tldextract import extract
 from credentials import mongodb
 from tempfile import TemporaryDirectory
 from filelock import FileLock
@@ -56,11 +56,11 @@ class ChiselSession(Session):
 
         self.locks = TemporaryDirectory()
         self.IPv4 = requests.get('https://api.ipify.org/').text
-        self.extract = TLDExtract(cache_dir=self.locks.name)
         self.cookies.set_policy(BlockCookies())
 
-    def _domain(self, url):
-        extracted = self.extract(url)
+    @staticmethod
+    def _domain(url):
+        extracted = extract(url)
         return '.' + extracted.domain + '.' + extracted.suffix
 
     def _ip(self, proxy):
