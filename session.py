@@ -1,11 +1,6 @@
 from requests import Session
-from selenium.webdriver import Chrome, ChromeOptions
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support.expected_conditions import title_is
-from selenium.common.exceptions import TimeoutException
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.common.action_chains import ActionChains
-from random import choice
+from subprocess import Popen, DEVNULL, run
+from signal import SIGINT
 from time import sleep
 from cloudscraper import CloudScraper
 from http.cookiejar import CookiePolicy
@@ -13,7 +8,6 @@ from pymongo import MongoClient, DESCENDING
 from tldextract import extract
 from credentials import mongodb
 from tempfile import TemporaryDirectory
-from filelock import FileLock
 from os.path import join
 from urllib.parse import urlsplit
 import re
@@ -22,7 +16,7 @@ from requests.exceptions import ConnectionError, ReadTimeout
 import pandas as pd
 import requests
 from datetime import datetime
-from copy import deepcopy
+from chrome_cookiejar import ChromeCookieJar
 import magic
 
 
@@ -36,17 +30,6 @@ class ChiselSession(Session):
     def __init__(self):
         super().__init__()
 
-        self.options = ChromeOptions()
-        self.options.headless = True
-        self.options.add_argument('--window-size=1920,1080')
-        self.options.add_experimental_option('excludeSwitches', ['enable-automation', 'dom-automation'])
-        self.options.add_experimental_option('useAutomationExtension', False)
-        self.options.add_argument('--disable-blink-features=AutomationControlled')
-        with Chrome(options=self.options) as browser:
-            user_agent = browser.execute_script('return navigator.userAgent').replace('Headless', '')
-            self.headers['user-agent'] = user_agent
-            self.options.add_argument('--user-agent=' + user_agent)
-
         self.database = MongoClient(**mongodb)['chisel']
         self.database['tokens'].create_index(keys=(('domain', 1), ('ip', 1)), unique=True)
         self.database['history'].create_index(keys='domain', unique=True)
@@ -54,8 +37,12 @@ class ChiselSession(Session):
         self.database['proxies'].create_index(keys='works')
         self.database['proxies'].create_index(keys='inserted')
 
-        self.locks = TemporaryDirectory()
+        # TODO: consolidate and clean up
         self.IPv4 = requests.get('https://api.ipify.org/').text
+        self.ua = re.search(r'"rawUa":"(.+?)"', run(capture_output=True, universal_newlines=True, args=(
+            'chromium', '--headless', '--disable-gpu', '--dump-dom', 'https://www.whatsmyua.info/api/v1/ua',
+        )).stdout).group(1).replace('HeadlessChrome', 'Chrome')
+
         self.cookies.set_policy(BlockCookies())
 
     @staticmethod
@@ -69,10 +56,7 @@ class ChiselSession(Session):
         else:
             return self.IPv4
 
-    def save_tokens(self, url, proxy, cookie):
-        if not cookie:
-            return
-
+    def save_tokens(self, url, proxy, token, ua):
         domain = self._domain(url)
         ip = self._ip(proxy)
 
@@ -82,14 +66,15 @@ class ChiselSession(Session):
         }, {
             'domain': domain,
             'ip': ip,
-            'token': cookie['value'],
+            'token': token,
+            'ua': ua,
         }, True)
 
     def load_tokens(self, url, proxy):
         document = self.database['tokens'].find_one({'domain': self._domain(url), 'ip': self._ip(proxy)})
         if document is None:
-            return {}
-        return {'cf_clearance': document['token']}
+            return {}, {}
+        return {'cf_clearance': document['token']}, {'User-Agent': document['ua']}
 
     def save_history(self, url, blocked):
         domain = urlsplit(url).netloc
@@ -116,9 +101,10 @@ class ChiselSession(Session):
         resp = None
         retries = 0
         cookies = kwargs.pop('cookies', {})
+        headers = kwargs.pop('headers', {})
         blocked = self.load_history(url)
         proxy = None
-        tokens = {}
+        tokens = {}, {}
 
         while retries < 5:
             if retries != 0:
@@ -132,7 +118,8 @@ class ChiselSession(Session):
                 resp = super().request(
                     method=method,
                     url=url,
-                    cookies={**cookies, **tokens},
+                    cookies={**cookies, **tokens[0]},
+                    headers={**headers, **tokens[1]},
                     proxies={'http': proxy, 'https': proxy},
                     timeout=60,
                     **kwargs,
@@ -161,25 +148,21 @@ class ChiselSession(Session):
             if resp.ok or resp.status_code == 404:
                 return resp
 
+            # TODO: custom check and remove module
+            # TODO: prevent multiple browsers for same challenge
             if CloudScraper.is_IUAM_Challenge(resp) or CloudScraper.is_New_IUAM_Challenge(resp):
-                with FileLock(join(self.locks.name, self._domain(url) + ' -- ' + self._ip(proxy))):
-                    if tokens == self.load_tokens(url, proxy):
-                        options = deepcopy(self.options)
-                        if proxy:
-                            options.add_argument('--proxy-server=' + proxy)
-                        with Chrome(options=options) as browser:
-                            with open('selenium.js', 'r') as fp:
-                                browser.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {'source': fp.read()})
-                            browser.get(url)
-                            browser.execute_script(f"window.open('{url}');")
-                            actions = ActionChains(browser)
-                            for _ in range(30):
-                                actions.send_keys(choice((Keys.DOWN, Keys.UP, Keys.LEFT, Keys.RIGHT))).perform()
-                            try:
-                                WebDriverWait(browser, 30).until_not(title_is('Just a moment...'))
-                            except TimeoutException:
-                                pass
-                            self.save_tokens(url, proxy, browser.get_cookie('cf_clearance'))
+                with TemporaryDirectory() as tmp:
+                    # TODO: use flags to set proxy
+                    browser = Popen(stdout=DEVNULL, stderr=DEVNULL, args=(
+                        'chromium', '--disable-gpu', '--user-data-dir=' + tmp, url,
+                    ))
+                    sleep(10)
+                    browser.send_signal(SIGINT)
+                    browser.wait()
+                    for cookie in ChromeCookieJar(join(tmp, 'Default', 'Cookies')):
+                        if cookie.domain == self._domain(url) and cookie.name == 'cf_clearance':
+                            self.save_tokens(url, proxy, cookie.value, self.ua)
+                            break
 
             print('Retrying "{}" after status code {} ...'.format(url, resp.status_code))
             retries += 1

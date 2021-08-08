@@ -7,5 +7,5 @@ cloudscraper
 pymongo
 tldextract
 python-magic
-filelock
+chrome-cookiejar
 pandas
