@@ -38,8 +38,8 @@ class ChiselProxy(BaseHTTPRequestHandler):
         pass
 
         # obtain actual client IP address
-        if self.client_address[0] == '127.0.0.1' and 'x-forwarded-for' in self.headers:
-            client_ip = self.headers['x-forwarded-for']
+        if self.client_address[0] == '127.0.0.1' and 'x-real-ip' in self.headers:
+            client_ip = self.headers['x-real-ip']
         else:
             client_ip = self.client_address[0]
 
