@@ -46,19 +46,19 @@ class ChiselSession(Session):
         self.cookies.set_policy(BlockCookies())
 
     @staticmethod
-    def _domain(url):
+    def cookie_domain(url):
         extracted = extract(url)
         return '.' + extracted.domain + '.' + extracted.suffix
 
-    def _ip(self, proxy):
+    def current_ip(self, proxy):
         if proxy:
             return urlsplit(proxy).hostname
         else:
             return self.IPv4
 
     def save_tokens(self, url, proxy, token, ua):
-        domain = self._domain(url)
-        ip = self._ip(proxy)
+        domain = self.cookie_domain(url)
+        ip = self.current_ip(proxy)
 
         self.database['tokens'].update({
             'domain': domain,
@@ -71,7 +71,7 @@ class ChiselSession(Session):
         }, True)
 
     def load_tokens(self, url, proxy):
-        document = self.database['tokens'].find_one({'domain': self._domain(url), 'ip': self._ip(proxy)})
+        document = self.database['tokens'].find_one({'domain': self.cookie_domain(url), 'ip': self.current_ip(proxy)})
         if document is None:
             return {}, {}
         return {'cf_clearance': document['token']}, {'user-agent': document['ua']}
@@ -160,7 +160,7 @@ class ChiselSession(Session):
                     browser.send_signal(SIGINT)
                     browser.wait()
                     for cookie in ChromeCookieJar(join(tmp, 'Default', 'Cookies')):
-                        if cookie.domain == self._domain(url) and cookie.name == 'cf_clearance':
+                        if cookie.domain == self.cookie_domain(url) and cookie.name == 'cf_clearance':
                             self.save_tokens(url, proxy, cookie.value, self.ua)
                             break
 
