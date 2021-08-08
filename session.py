@@ -195,13 +195,20 @@ class ChiselSession(Session):
                 with TokenLock(self, url, proxy) as changed:
                     if not changed:
                         with TemporaryDirectory() as tmp:
-                            # TODO: use flags to set proxy
-                            browser = Popen(stdout=DEVNULL, stderr=DEVNULL, args=(
-                                'chromium', '--disable-gpu', '--user-data-dir=' + tmp, url,
-                            ))
-                            sleep(10)
-                            browser.send_signal(SIGINT)
-                            browser.wait()
+
+                            flags = ['chromium', '--disable-gpu']
+                            if proxy:
+                                flags.append('--proxy-server=' + proxy)
+                            flags.append('--user-data-dir=' + tmp)
+                            flags.append(url)
+
+                            print('> starting:', *flags)
+                            with Popen(stdout=DEVNULL, stderr=DEVNULL, args=flags) as browser:
+                                sleep(9)
+                                browser.send_signal(SIGINT)
+                                browser.wait()
+                            print('> stopped:', *flags)
+
                             for cookie in ChromeCookieJar(join(tmp, 'Default', 'Cookies')):
                                 if cookie.domain == self.cookie_domain(url) and cookie.name == 'cf_clearance':
                                     self.save_tokens(url, proxy, cookie.value, self.ua)
