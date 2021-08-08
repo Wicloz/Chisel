@@ -60,19 +60,19 @@ class ChiselSession(Session):
         domain = self.cookie_domain(url)
         ip = self.current_ip(proxy)
 
-        self.database['tokens'].update({
+        self.database['tokens'].update_one({
             'domain': domain,
             'ip': ip,
-        }, {
+        }, {'$set': {
             'domain': domain,
             'ip': ip,
             'token': token,
             'ua': ua,
-        }, True)
+        }}, upsert=True)
 
     def load_tokens(self, url, proxy):
         document = self.database['tokens'].find_one({'domain': self.cookie_domain(url), 'ip': self.current_ip(proxy)})
-        if document is None:
+        if not document or 'token' not in document or 'ua' not in document:
             return {}, {}
         return {'cf_clearance': document['token']}, {'user-agent': document['ua']}
 
@@ -89,7 +89,7 @@ class ChiselSession(Session):
         increments = {'visits': 1}
         if blocked:
             increments['bans'] = 1
-        self.database['history'].update({'domain': domain}, {'$inc': increments})
+        self.database['history'].update_one({'domain': domain}, {'$inc': increments})
 
     def load_history(self, url):
         document = self.database['history'].find_one({'domain': urlsplit(url).netloc})
@@ -126,7 +126,7 @@ class ChiselSession(Session):
                 )
             except (ConnectionError, ReadTimeout):
                 if proxy:
-                    self.database['proxies'].update({'proxy': proxy}, {'$set': {'works': False}})
+                    self.database['proxies'].update_one({'proxy': proxy}, {'$set': {'works': False}})
                 else:
                     retries += 1
                 print('Retrying "{}" after connection error ...'.format(url))
@@ -209,4 +209,4 @@ class ChiselSession(Session):
                     ).status_code == 204 for protocol in ('http', 'https'))
                 except (ConnectionError, ReadTimeout):
                     works = False
-                self.database['proxies'].update({'proxy': proxy}, {'$set': {'works': works}})
+                self.database['proxies'].update_one({'proxy': proxy}, {'$set': {'works': works}})
