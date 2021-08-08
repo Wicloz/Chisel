@@ -74,7 +74,7 @@ class ChiselSession(Session):
         document = self.database['tokens'].find_one({'domain': self._domain(url), 'ip': self._ip(proxy)})
         if document is None:
             return {}, {}
-        return {'cf_clearance': document['token']}, {'User-Agent': document['ua']}
+        return {'cf_clearance': document['token']}, {'user-agent': document['ua']}
 
     def save_history(self, url, blocked):
         domain = urlsplit(url).netloc
