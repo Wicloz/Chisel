@@ -204,7 +204,7 @@ class ChiselSession(Session):
 
                             print('> starting:', *flags)
                             with Popen(stdout=DEVNULL, stderr=DEVNULL, args=flags) as browser:
-                                sleep(9)
+                                sleep(5)
                                 browser.send_signal(SIGINT)
                                 browser.wait()
                             print('> stopped:', *flags)
