@@ -2,7 +2,6 @@ from requests import Session
 from subprocess import Popen, DEVNULL, run
 from signal import SIGINT
 from time import sleep
-from cloudscraper import CloudScraper
 from http.cookiejar import CookiePolicy
 from pymongo import MongoClient, DESCENDING
 from tldextract import extract
@@ -190,8 +189,7 @@ class ChiselSession(Session):
             if resp.ok or resp.status_code == 404:
                 return resp
 
-            # TODO: custom check and remove module
-            if CloudScraper.is_IUAM_Challenge(resp) or CloudScraper.is_New_IUAM_Challenge(resp):
+            if resp.headers['content-type'].startswith('text/html') and re.search(r'_cf_chl_', resp.text):
                 with TokenLock(self, url, proxy) as changed:
                     if not changed:
                         with TemporaryDirectory() as tmp:

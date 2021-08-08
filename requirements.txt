@@ -3,7 +3,6 @@ beautifulsoup4
 lxml
 requests
 pysocks
-cloudscraper
 pymongo
 tldextract
 python-magic
