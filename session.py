@@ -172,7 +172,7 @@ class ChiselSession(Session):
                     self.database['proxies'].update_one({'proxy': proxy}, {'$set': {'works': False}})
                 else:
                     retries += 1
-                print('Retrying "{}" after connection error ...'.format(url))
+                print(f'Retrying "{url}" after connection error ...')
                 continue
 
             if 'content-type' not in resp.headers:
@@ -214,7 +214,7 @@ class ChiselSession(Session):
                                     self.save_tokens(url, proxy, cookie.value)
                                     break
 
-            print('Retrying "{}" after status code {} ...'.format(url, resp.status_code))
+            print(f'Retrying "{url}" after status code {resp.status_code} ...')
             retries += 1
 
         return resp
