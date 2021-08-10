@@ -120,7 +120,10 @@ class ChiselSession(Session):
         })
         if not document or 'token' not in document or 'ua' not in document:
             return {}, {}
-        return {'cf_clearance': document['token']}, {'user-agent': document['ua']}
+        return (
+            {key: document['token'] for key in ('cf_clearance', 'waf_cv')},
+            {'user-agent': document['ua']},
+        )
 
     def save_history(self, url, blocked):
         domain = urlsplit(url).netloc
@@ -193,6 +196,11 @@ class ChiselSession(Session):
 
             if resp.ok or resp.status_code == 404:
                 return resp
+
+            if resp.status_code == 401 and urlsplit(url).hostname == '9anime.to':
+                challenge = re.findall(r"'.*?'", resp.text)[-1][1:-1]
+                solution = ''.join(chr(int(c, 16)) for c in re.findall(r'..', challenge))
+                self.save_tokens(url, proxy, solution)
 
             if resp.headers['content-type'].startswith('text/html') and re.search(r'_cf_chl_', resp.text):
                 with TokenLock(self, url, proxy) as changed:
