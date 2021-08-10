@@ -24,7 +24,7 @@ import json
 class TokenLock:
     def __init__(self, session, url, proxy):
         self.domain = session.cookie_domain(url)
-        self.ip = session.current_ip(proxy)
+        self.ip = session.current_ip_using(proxy)
         self.table = session.database['tokens']
 
     def _locked(self):
@@ -88,7 +88,7 @@ class ChiselSession(Session):
         return '.' + extracted.domain + '.' + extracted.suffix
 
     @staticmethod
-    def current_ip(proxy):
+    def current_ip_using(proxy):
         if proxy:
             return urlsplit(proxy).hostname
         else:
@@ -96,7 +96,7 @@ class ChiselSession(Session):
 
     def save_tokens(self, url, proxy, token):
         domain = self.cookie_domain(url)
-        ip = self.current_ip(proxy)
+        ip = self.current_ip_using(proxy)
 
         soup = BeautifulSoup(run(capture_output=True, universal_newlines=True, args=(
             'chromium', '--disable-gpu', '--headless', '--dump-dom', 'https://chisel.wicloz.rocks/info',
@@ -114,7 +114,10 @@ class ChiselSession(Session):
         }}, upsert=True)
 
     def load_tokens(self, url, proxy):
-        document = self.database['tokens'].find_one({'domain': self.cookie_domain(url), 'ip': self.current_ip(proxy)})
+        document = self.database['tokens'].find_one({
+            'domain': self.cookie_domain(url),
+            'ip': self.current_ip_using(proxy),
+        })
         if not document or 'token' not in document or 'ua' not in document:
             return {}, {}
         return {'cf_clearance': document['token']}, {'user-agent': document['ua']}
