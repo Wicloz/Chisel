@@ -37,17 +37,10 @@ class ChiselProxy(BaseHTTPRequestHandler):
     def proxy(self):
         pass
 
-        # obtain actual client IP address
-        if self.client_address[0] == '127.0.0.1' and 'x-real-ip' in self.headers:
-            client_ip = self.headers['x-real-ip']
-        else:
-            client_ip = self.client_address[0]
-
         # special case: process info request
-        if self.path == '/info':
+        if self.path == '/headers':
             response = json.dumps({
-                'UA': self.headers['user-agent'],
-                'IP': client_ip,
+                key.lower(): value for key, value in self.headers.items()
             }).encode('UTF8')
             self.send_response(200)
             self.send_header('content-type', 'application/json')

@@ -99,9 +99,9 @@ class ChiselSession(Session):
         ip = self.current_ip_using(proxy)
 
         soup = BeautifulSoup(run(capture_output=True, universal_newlines=True, args=(
-            'chromium', '--disable-gpu', '--headless', '--dump-dom', 'https://chisel.wicloz.rocks/info',
+            'chromium', '--disable-gpu', '--headless', '--dump-dom', 'https://chisel.wicloz.rocks/headers',
         )).stdout, 'lxml')
-        ua = json.loads(soup.find('pre').text)['UA'].replace('HeadlessChrome', 'Chrome')
+        ua = json.loads(soup.find('pre').text)['user-agent'].replace('HeadlessChrome', 'Chrome')
 
         self.database['tokens'].update_one({
             'domain': domain,
