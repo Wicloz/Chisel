@@ -198,7 +198,7 @@ class ChiselSession(Session):
                 return resp
 
             if resp.status_code == 401 and urlsplit(url).hostname == '9anime.to':
-                challenge = re.findall(r"'.*?'", resp.text)[-1][1:-1]
+                challenge = re.findall(r"'(?:\\'|[^'])*'", resp.text)[-1][1:-1]
                 solution = ''.join(chr(int(c, 16)) for c in re.findall(r'..', challenge))
                 self.save_tokens(url, proxy, solution)
 
