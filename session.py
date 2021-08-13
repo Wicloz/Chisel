@@ -26,8 +26,10 @@ class TokenLock:
         self.domain = session.cookie_domain(url)
         self.ip = session.current_ip_using(proxy)
         self.table = session.database['tokens']
+        self.acquired = False
 
-    def _locked(self):
+    @property
+    def locked(self):
         record = self.table.find_one({
             'domain': self.domain,
             'ip': self.ip,
@@ -35,12 +37,7 @@ class TokenLock:
         return record and 'locked' in record and record['locked']
 
     def __enter__(self):
-        changed = False
-        while self._locked():
-            changed = True
-            sleep(1)
-
-        self.table.update_one({
+        result = self.table.update_one({
             'domain': self.domain,
             'ip': self.ip,
         }, {'$set': {
@@ -49,17 +46,25 @@ class TokenLock:
             'locked': True,
         }}, upsert=True)
 
-        return changed
+        if result.modified_count or result.upserted_id:
+            self.acquired = True
+
+        if not self.acquired:
+            while self.locked:
+                sleep(1)
+
+        return self
 
     def __exit__(self, *args):
-        self.table.update_one({
-            'domain': self.domain,
-            'ip': self.ip,
-        }, {'$set': {
-            'domain': self.domain,
-            'ip': self.ip,
-            'locked': False,
-        }}, upsert=True)
+        if self.acquired:
+            self.table.update_one({
+                'domain': self.domain,
+                'ip': self.ip,
+            }, {'$set': {
+                'domain': self.domain,
+                'ip': self.ip,
+                'locked': False,
+            }}, upsert=True)
 
 
 class BlockCookies(CookiePolicy):
@@ -203,8 +208,8 @@ class ChiselSession(Session):
                 self.save_tokens(url, proxy, solution)
 
             if resp.headers['content-type'].startswith('text/html') and re.search(r'_cf_chl_', resp.text):
-                with TokenLock(self, url, proxy) as changed:
-                    if not changed:
+                with TokenLock(self, url, proxy) as lock:
+                    if lock.acquired:
                         with TemporaryDirectory() as tmp:
 
                             flags = ['chromium', '--disable-gpu']
