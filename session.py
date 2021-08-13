@@ -213,12 +213,12 @@ class ChiselSession(Session):
                             flags.append('--user-data-dir=' + tmp)
                             flags.append(url)
 
-                            print('> starting:', *flags)
+                            print('> STARTING:', *flags)
                             with Popen(stdout=DEVNULL, stderr=DEVNULL, args=flags) as browser:
-                                sleep(5)
+                                sleep(9)
                                 browser.send_signal(SIGINT)
                                 browser.wait()
-                            print('> stopped:', *flags)
+                            print('> STOPPED:', *flags)
 
                             for cookie in ChromeCookieJar(join(tmp, 'Default', 'Cookies')):
                                 if cookie.domain == self.cookie_domain(url) and cookie.name == 'cf_clearance':
