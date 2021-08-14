@@ -6,7 +6,7 @@ from urllib.parse import urljoin, urlsplit, urlunsplit
 from bs4 import BeautifulSoup
 from requests.structures import CaseInsensitiveDict
 from http.cookies import SimpleCookie
-from session import ChiselSession
+from chisel.session import ChiselSession
 import re
 from threading import Thread
 import json
