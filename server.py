@@ -8,7 +8,6 @@ from requests.structures import CaseInsensitiveDict
 from http.cookies import SimpleCookie
 from chisel.session import ChiselSession
 import re
-from threading import Thread
 import json
 
 
@@ -169,7 +168,6 @@ class ChiselProxy(BaseHTTPRequestHandler):
 if __name__ == '__main__':
     # set up the shared session
     session = ChiselSession()
-    Thread(target=session.worker, daemon=True).start()
     # start the HTTP server
     print('Starting HTTP server on port 1234 ...')
     ThreadingHTTPServer(('', 1234), ChiselProxy).serve_forever()
