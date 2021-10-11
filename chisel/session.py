@@ -1,70 +1,18 @@
 from requests import Session
-from subprocess import Popen, DEVNULL, run
+from subprocess import Popen, DEVNULL
 from signal import SIGINT
 from time import sleep
 from http.cookiejar import CookiePolicy
-from pymongo import MongoClient, DESCENDING
-from tldextract import extract
-from credentials import mongodb
 from tempfile import TemporaryDirectory
 from os.path import join
 from urllib.parse import urlsplit
 import re
-from random import random
 from requests.exceptions import ConnectionError, ReadTimeout
 import pandas as pd
 import requests
-from datetime import datetime
 from chrome_cookiejar import ChromeCookieJar
 import magic
-from bs4 import BeautifulSoup
-import json
-
-
-class TokenLock:
-    def __init__(self, session, url, proxy):
-        self.domain = session.cookie_domain(url)
-        self.ip = session.current_ip_using(proxy)
-        self.table = session.database['tokens']
-        self.acquired = False
-
-    @property
-    def locked(self):
-        record = self.table.find_one({
-            'domain': self.domain,
-            'ip': self.ip,
-        })
-        return record and 'locked' in record and record['locked']
-
-    def __enter__(self):
-        result = self.table.update_one({
-            'domain': self.domain,
-            'ip': self.ip,
-        }, {'$set': {
-            'domain': self.domain,
-            'ip': self.ip,
-            'locked': True,
-        }}, upsert=True)
-
-        if result.modified_count or result.upserted_id:
-            self.acquired = True
-
-        if not self.acquired:
-            while self.locked:
-                sleep(1)
-
-        return self
-
-    def __exit__(self, *args):
-        if self.acquired:
-            self.table.update_one({
-                'domain': self.domain,
-                'ip': self.ip,
-            }, {'$set': {
-                'domain': self.domain,
-                'ip': self.ip,
-                'locked': False,
-            }}, upsert=True)
+from chisel.database import ChiselDB, TokenLock, cookie_domain
 
 
 class BlockCookies(CookiePolicy):
@@ -76,78 +24,8 @@ class BlockCookies(CookiePolicy):
 class ChiselSession(Session):
     def __init__(self):
         super().__init__()
-
-        self.database = MongoClient(**mongodb)['chisel']
-        self.database['tokens'].create_index(keys=(('domain', 1), ('ip', 1)), unique=True)
-        self.database['tokens'].update_many({}, {'$set': {'locked': False}})
-        self.database['history'].create_index(keys='domain', unique=True)
-        self.database['proxies'].create_index(keys='proxy', unique=True)
-        self.database['proxies'].create_index(keys='works')
-        self.database['proxies'].create_index(keys='inserted')
-
         self.cookies.set_policy(BlockCookies())
-
-    @staticmethod
-    def cookie_domain(url):
-        extracted = extract(url)
-        return '.' + extracted.domain + '.' + extracted.suffix
-
-    @staticmethod
-    def current_ip_using(proxy):
-        if proxy:
-            return urlsplit(proxy).hostname
-        else:
-            return requests.get('https://api64.ipify.org/').text
-
-    def save_tokens(self, url, proxy, token):
-        domain = self.cookie_domain(url)
-        ip = self.current_ip_using(proxy)
-
-        soup = BeautifulSoup(run(capture_output=True, universal_newlines=True, args=(
-            'chromium', '--disable-gpu', '--headless', '--dump-dom', 'https://chisel.wicloz.rocks/headers',
-        )).stdout, 'lxml')
-        ua = json.loads(soup.find('pre').text)['user-agent'].replace('HeadlessChrome', 'Chrome')
-
-        self.database['tokens'].update_one({
-            'domain': domain,
-            'ip': ip,
-        }, {'$set': {
-            'domain': domain,
-            'ip': ip,
-            'token': token,
-            'ua': ua,
-        }}, upsert=True)
-
-    def load_tokens(self, url, proxy):
-        document = self.database['tokens'].find_one({
-            'domain': self.cookie_domain(url),
-            'ip': self.current_ip_using(proxy),
-        })
-        if not document or 'token' not in document or 'ua' not in document:
-            return {}, {}
-        return (
-            {key: document['token'] for key in ('cf_clearance', 'waf_cv')},
-            {'user-agent': document['ua']},
-        )
-
-    def save_history(self, url, blocked):
-        domain = urlsplit(url).netloc
-
-        if not self.database['history'].count({'domain': domain}):
-            self.database['history'].insert({
-                'domain': domain,
-                'visits': 0,
-                'bans': 0,
-            })
-
-        increments = {'visits': 1}
-        if blocked:
-            increments['bans'] = 1
-        self.database['history'].update_one({'domain': domain}, {'$inc': increments})
-
-    def load_history(self, url):
-        document = self.database['history'].find_one({'domain': urlsplit(url).netloc})
-        return document and random() < document['bans'] / (document['visits'] + 1)
+        self.db = ChiselDB()
 
     def request(self, method, url, **kwargs):
         assert urlsplit(url).scheme in {'http', 'https'}
@@ -156,7 +34,7 @@ class ChiselSession(Session):
         retries = 0
         cookies = kwargs.pop('cookies', {})
         headers = kwargs.pop('headers', {})
-        blocked = self.load_history(url)
+        blocked = self.db.load_history(url)
         proxy = None
         tokens = {}, {}
 
@@ -164,9 +42,9 @@ class ChiselSession(Session):
             if retries != 0:
                 sleep(2 ** (retries - 1))
 
-            if retries == 0 or tokens == self.load_tokens(url, proxy):
-                proxy = self.get_random_proxy(blocked)
-            tokens = self.load_tokens(url, proxy)
+            if retries == 0 or tokens == self.db.load_tokens(url, proxy):
+                proxy = self.db.get_random_proxy(blocked)
+            tokens = self.db.load_tokens(url, proxy)
 
             try:
                 resp = super().request(
@@ -180,7 +58,7 @@ class ChiselSession(Session):
                 )
             except (ConnectionError, ReadTimeout):
                 if proxy:
-                    self.database['proxies'].update_one({'proxy': proxy}, {'$set': {'works': False}})
+                    self.db.update_proxy_status(proxy, False)
                 else:
                     retries += 1
                 print(f'Retrying "{url}" after connection error ...')
@@ -197,7 +75,7 @@ class ChiselSession(Session):
 
             if not blocked:
                 blocked = resp.status_code in {429, 403}
-                self.save_history(url, blocked)
+                self.db.save_history(url, blocked)
 
             if resp.ok or resp.status_code == 404:
                 return resp
@@ -205,10 +83,10 @@ class ChiselSession(Session):
             if resp.status_code == 401 and urlsplit(url).hostname == '9anime.to':
                 challenge = re.findall(r"'(?:\\'|[^'])*'", resp.text)[-1][1:-1]
                 solution = ''.join(chr(int(c, 16)) for c in re.findall(r'..', challenge))
-                self.save_tokens(url, proxy, solution)
+                self.db.save_tokens(url, proxy, solution)
 
             if resp.headers['content-type'].startswith('text/html') and re.search(r'_cf_chl_', resp.text):
-                with TokenLock(self, url, proxy) as lock:
+                with TokenLock(self.db, url, proxy) as lock:
                     if lock.acquired:
                         with TemporaryDirectory() as tmp:
 
@@ -226,31 +104,14 @@ class ChiselSession(Session):
                             print('> STOPPED:', *flags)
 
                             for cookie in ChromeCookieJar(join(tmp, 'Default', 'Cookies')):
-                                if cookie.domain == self.cookie_domain(url) and cookie.name == 'cf_clearance':
-                                    self.save_tokens(url, proxy, cookie.value)
+                                if cookie.domain == cookie_domain(url) and cookie.name == 'cf_clearance':
+                                    self.db.save_tokens(url, proxy, cookie.value)
                                     break
 
             print(f'Retrying "{url}" after status code {resp.status_code} ...')
             retries += 1
 
         return resp
-
-    def get_random_proxy(self, enabled):
-        if not enabled:
-            return None
-        return self.database['proxies'].aggregate([
-            {'$match': {'works': True}},
-            {'$sample': {'size': 1}},
-        ]).next()['proxy']
-
-    def store_proxy_series(self, series):
-        for item in series:
-            if not self.database['proxies'].count({'proxy': item}):
-                self.database['proxies'].insert({
-                    'proxy': item,
-                    'works': True,
-                    'inserted': datetime.now(),
-                })
 
     def worker(self):
         while True:
@@ -259,14 +120,14 @@ class ChiselSession(Session):
             df = pd.read_html(requests.get('https://www.socks-proxy.net/').text)[0][:-1]
             df['Port'] = df['Port'].astype(int).astype(str)
             df['Version'] = df['Version'].str.lower()
-            self.store_proxy_series(df['Version'] + '://' + df['IP Address'] + ':' + df['Port'])
+            self.db.store_proxy_series(df['Version'] + '://' + df['IP Address'] + ':' + df['Port'])
 
             df = pd.read_html(requests.get('https://free-proxy-list.net/').text)[0][:-1]
             df['Port'] = df['Port'].astype(int).astype(str)
             df['Https'] = df['Https'].map({'yes': 'https', 'no': 'http'})
-            self.store_proxy_series(df['Https'] + '://' + df['IP Address'] + ':' + df['Port'])
+            self.db.store_proxy_series(df['Https'] + '://' + df['IP Address'] + ':' + df['Port'])
 
-            for proxy in [doc['proxy'] for doc in self.database['proxies'].find().sort('inserted', DESCENDING)]:
+            for proxy in [doc['proxy'] for doc in self.db.get_proxies_by_insertion()]:
                 try:
                     works = all(requests.head(
                         url=protocol + '://connectivitycheck.gstatic.com/generate_204',
@@ -275,4 +136,4 @@ class ChiselSession(Session):
                     ).status_code == 204 for protocol in ('http', 'https'))
                 except (ConnectionError, ReadTimeout):
                     works = False
-                self.database['proxies'].update_one({'proxy': proxy}, {'$set': {'works': works}})
+                self.db.update_proxy_status(proxy, works)
