@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 from chisel.database import ChiselDB
 import pandas as pd
 import requests
