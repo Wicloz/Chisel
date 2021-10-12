@@ -6,7 +6,7 @@ import requests
 from requests.exceptions import ConnectionError, ReadTimeout
 
 if __name__ == '__main__':
-    cdb = ChiselDB()
+    cdb = ChiselDB(False)
     while True:
         pass
 

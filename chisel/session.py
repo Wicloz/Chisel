@@ -13,7 +13,7 @@ from chisel.database import ChiselDB, TokenLock, cookie_domain
 
 
 class ChiselSession(Session):
-    DB = ChiselDB()
+    DB = ChiselDB(True)
 
     def request(self, method, url, **kwargs):
         assert urlsplit(url).scheme in {'http', 'https'}
