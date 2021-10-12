@@ -4,9 +4,24 @@ from chisel.database import ChiselDB
 import pandas as pd
 import requests
 from requests.exceptions import ConnectionError, ReadTimeout
+from multiprocessing import Pool
 
-if __name__ == '__main__':
+
+def check_proxy_uri(proxy):
+    try:
+        return proxy, all(requests.head(
+            url=protocol + '://connectivitycheck.gstatic.com/generate_204',
+            proxies={protocol: proxy},
+            timeout=5,
+        ).status_code == 204 for protocol in ('http', 'https'))
+    except (ConnectionError, ReadTimeout):
+        return proxy, False
+
+
+def main():
     cdb = ChiselDB(False)
+    pool = Pool()
+
     while True:
         pass
 
@@ -20,15 +35,13 @@ if __name__ == '__main__':
         df['Https'] = df['Https'].map({'yes': 'https', 'no': 'http'})
         cdb.store_proxy_series(df['Https'] + '://' + df['IP Address'] + ':' + df['Port'])
 
-        for proxy in [doc['proxy'] for doc in cdb.get_proxies_by_insertion()]:
-            try:
-                works = all(requests.head(
-                    url=protocol + '://connectivitycheck.gstatic.com/generate_204',
-                    proxies={protocol: proxy},
-                    timeout=5,
-                ).status_code == 204 for protocol in ('http', 'https'))
-            except (ConnectionError, ReadTimeout):
-                works = False
-
+        for proxy, works in pool.imap_unordered(
+                func=check_proxy_uri,
+                iterable=[doc['proxy'] for doc in cdb.get_proxies_by_insertion()],
+        ):
             print(proxy, works)
             cdb.update_proxy_status(proxy, works)
+
+
+if __name__ == '__main__':
+    main()
