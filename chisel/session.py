@@ -2,7 +2,6 @@ from requests import Session
 from subprocess import Popen, DEVNULL
 from signal import SIGINT
 from time import sleep
-from http.cookiejar import CookiePolicy
 from tempfile import TemporaryDirectory
 from os.path import join
 from urllib.parse import urlsplit
@@ -13,16 +12,9 @@ import magic
 from chisel.database import ChiselDB, TokenLock, cookie_domain
 
 
-class BlockCookies(CookiePolicy):
-    return_ok = set_ok = domain_return_ok = path_return_ok = lambda self, *args, **kwargs: False
-    netscape = True
-    rfc2965 = hide_cookie2 = False
-
-
 class ChiselSession(Session):
     def __init__(self):
         super().__init__()
-        self.cookies.set_policy(BlockCookies())
         self.db = ChiselDB()
 
     def request(self, method, url, **kwargs):
