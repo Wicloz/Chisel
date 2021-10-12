@@ -86,7 +86,7 @@ class ChiselProxy(BaseHTTPRequestHandler):
         cookies.pop('cf_clearance', None)
 
         # send upstream request
-        resp = session.request(
+        resp = ChiselSession().request(
             method=self.command,
             url=c_target,
             data=content,
@@ -166,8 +166,5 @@ class ChiselProxy(BaseHTTPRequestHandler):
 
 
 if __name__ == '__main__':
-    # set up the shared session
-    session = ChiselSession()
-    # start the HTTP server
     print('Starting HTTP server on port 1234 ...')
     ThreadingHTTPServer(('', 1234), ChiselProxy).serve_forever()
