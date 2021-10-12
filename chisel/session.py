@@ -13,9 +13,7 @@ from chisel.database import ChiselDB, TokenLock, cookie_domain
 
 
 class ChiselSession(Session):
-    def __init__(self):
-        super().__init__()
-        self.db = ChiselDB()
+    DB = ChiselDB()
 
     def request(self, method, url, **kwargs):
         assert urlsplit(url).scheme in {'http', 'https'}
@@ -24,7 +22,7 @@ class ChiselSession(Session):
         retries = 0
         cookies = kwargs.pop('cookies', {})
         headers = kwargs.pop('headers', {})
-        blocked = self.db.load_history(url)
+        blocked = self.DB.load_history(url)
         proxy = None
         tokens = {}, {}
 
@@ -32,9 +30,9 @@ class ChiselSession(Session):
             if retries != 0:
                 sleep(2 ** (retries - 1))
 
-            if retries == 0 or tokens == self.db.load_tokens(url, proxy):
-                proxy = self.db.get_random_proxy(blocked)
-            tokens = self.db.load_tokens(url, proxy)
+            if retries == 0 or tokens == self.DB.load_tokens(url, proxy):
+                proxy = self.DB.get_random_proxy(blocked)
+            tokens = self.DB.load_tokens(url, proxy)
 
             try:
                 resp = super().request(
@@ -48,7 +46,7 @@ class ChiselSession(Session):
                 )
             except (ConnectionError, ReadTimeout):
                 if proxy:
-                    self.db.update_proxy_status(proxy, False)
+                    self.DB.update_proxy_status(proxy, False)
                 else:
                     retries += 1
                 print(f'Retrying "{url}" after connection error ...')
@@ -65,7 +63,7 @@ class ChiselSession(Session):
 
             if not blocked:
                 blocked = resp.status_code in {429, 403}
-                self.db.save_history(url, blocked)
+                self.DB.save_history(url, blocked)
 
             if resp.ok or resp.status_code == 404:
                 return resp
@@ -73,10 +71,10 @@ class ChiselSession(Session):
             if resp.status_code == 401 and urlsplit(url).hostname == '9anime.to':
                 challenge = re.findall(r"'(?:\\'|[^'])*'", resp.text)[-1][1:-1]
                 solution = ''.join(chr(int(c, 16)) for c in re.findall(r'..', challenge))
-                self.db.save_tokens(url, proxy, solution)
+                self.DB.save_tokens(url, proxy, solution)
 
             if resp.headers['content-type'].startswith('text/html') and re.search(r'_cf_chl_', resp.text):
-                with TokenLock(self.db, url, proxy) as lock:
+                with TokenLock(self.DB, url, proxy) as lock:
                     if lock.acquired:
                         with TemporaryDirectory() as tmp:
 
@@ -95,7 +93,7 @@ class ChiselSession(Session):
 
                             for cookie in ChromeCookieJar(join(tmp, 'Default', 'Cookies')):
                                 if cookie.domain == cookie_domain(url) and cookie.name == 'cf_clearance':
-                                    self.db.save_tokens(url, proxy, cookie.value)
+                                    self.DB.save_tokens(url, proxy, cookie.value)
                                     break
 
             print(f'Retrying "{url}" after status code {resp.status_code} ...')
