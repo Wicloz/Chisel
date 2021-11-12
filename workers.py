@@ -29,11 +29,13 @@ def main():
         df['Port'] = df['Port'].astype(int).astype(str)
         df['Version'] = df['Version'].str.lower()
         cdb.store_proxy_series(df['Version'] + '://' + df['IP Address'] + ':' + df['Port'])
+        del df
 
         df = pd.read_html(requests.get('https://free-proxy-list.net/').text)[0][:-1]
         df['Port'] = df['Port'].astype(int).astype(str)
         df['Https'] = df['Https'].map({'yes': 'https', 'no': 'http'})
         cdb.store_proxy_series(df['Https'] + '://' + df['IP Address'] + ':' + df['Port'])
+        del df
 
         for proxy, works in pool.imap_unordered(
                 func=check_proxy_uri,
