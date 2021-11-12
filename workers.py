@@ -20,7 +20,7 @@ def check_proxy_uri(proxy):
 
 def main():
     cdb = ChiselDB(False)
-    pool = Pool()
+    pool = Pool(100)
 
     while True:
         pass
