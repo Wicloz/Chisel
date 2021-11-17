@@ -5,6 +5,7 @@ import pandas as pd
 import requests
 from requests.exceptions import ConnectionError, ReadTimeout
 from multiprocessing import Pool
+from time import sleep
 
 
 def check_proxy_uri(proxy):
@@ -23,7 +24,8 @@ def main():
     pool = Pool(100)
 
     while True:
-        pass
+        while not check_proxy_uri(None)[1]:
+            sleep(2)
 
         df = pd.read_html(requests.get('https://www.socks-proxy.net/').text)[0][:-1]
         df['Port'] = df['Port'].astype(int).astype(str)
