@@ -115,8 +115,8 @@ class ChiselDB:
     def save_history(self, url, blocked):
         domain = urlsplit(url).netloc
 
-        if not self.database['history'].count({'domain': domain}):
-            self.database['history'].insert({
+        if not self.database['history'].count_documents({'domain': domain}):
+            self.database['history'].insert_one({
                 'domain': domain,
                 'visits': 0,
                 'bans': 0,
@@ -141,8 +141,8 @@ class ChiselDB:
 
     def store_proxy_series(self, series):
         for item in series:
-            if not self.database['proxies'].count({'proxy': item}):
-                self.database['proxies'].insert({
+            if not self.database['proxies'].count_documents({'proxy': item}):
+                self.database['proxies'].insert_one({
                     'proxy': item,
                     'works': True,
                     'inserted': datetime.now(),
