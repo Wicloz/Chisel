@@ -5,9 +5,17 @@ import pandas as pd
 import requests
 from requests.exceptions import ConnectionError, ReadTimeout
 from multiprocessing import Pool
+from time import sleep
 
 
 def check_proxy_uri(proxy):
+    while True:
+        try:
+            assert requests.head('https://connectivitycheck.gstatic.com/generate_204').status_code == 204
+            break
+        except (AssertionError, ConnectionError):
+            sleep(3)
+
     try:
         return proxy, all(requests.head(
             url=protocol + '://connectivitycheck.gstatic.com/generate_204',
