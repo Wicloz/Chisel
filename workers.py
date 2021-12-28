@@ -6,6 +6,7 @@ import requests
 from requests.exceptions import ConnectionError, ReadTimeout
 from multiprocessing import Pool
 from time import sleep
+from sys import stdout
 
 
 def check_proxy_uri(proxy):
@@ -26,6 +27,7 @@ def check_proxy_uri(proxy):
         return proxy, False
     except ValueError as e:
         print('===>', proxy)
+        stdout.flush()
         raise e
 
 
