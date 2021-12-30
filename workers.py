@@ -22,10 +22,8 @@ def check_proxy_uri(proxy):
             proxies={protocol: proxy},
             timeout=5,
         ).status_code == 204 for protocol in ('http', 'https'))
-    except (ConnectionError, ReadTimeout):
+    except (ConnectionError, ReadTimeout, ValueError):
         return proxy, False
-    except ValueError:
-        raise ValueError(proxy)
 
 
 def main():
