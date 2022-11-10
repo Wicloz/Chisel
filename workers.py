@@ -6,6 +6,7 @@ import requests
 from requests.exceptions import ConnectionError, ReadTimeout
 from multiprocessing import Pool
 from time import sleep
+from sys import argv
 
 
 def check_proxy_uri(proxy):
@@ -28,7 +29,7 @@ def check_proxy_uri(proxy):
 
 def main():
     cdb = ChiselDB(False)
-    pool = Pool(100)
+    pool = Pool(int(argv[1]))
 
     while True:
         pass
